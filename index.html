@@ -1,0 +1,1519 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07080d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Меркурий 3D">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Меркурий 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single macOS-style glass window floating over a slow aurora; sidebar tabs, two-column panes (inputs | live result). Dark-only by design. */
+:root{
+  color-scheme: dark;
+  --bg:#07080d;
+  --glass:rgba(20,22,32,.66);
+  --glass-2:rgba(255,255,255,.035);
+  --line:rgba(255,255,255,.08);
+  --line-2:rgba(255,255,255,.14);
+  --fg:#ECEAE3;
+  --muted:#8E90A2;
+  --gold:#E9B865;
+  --gold-2:#F6D9A0;
+  --teal:#72D5C6;
+  --violet:#9C8CF2;
+  --rose:#E88B8B;
+  --ok:#8FD694;
+  --paper:#F7F4EC;
+  --ink:#1B1C22;
+  --ink-2:#6A6C78;
+  --display:"Syne", "Manrope", system-ui, sans-serif;
+  --body:"Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r:14px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.5;overflow-x:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:6px}
+
+/* aurora */
+.aurora{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.aurora i{position:absolute;width:60vmax;height:60vmax;border-radius:50%;filter:blur(90px);opacity:.42;mix-blend-mode:screen}
+.aurora i:nth-child(1){background:radial-gradient(circle,#c98d2e 0%,transparent 62%);left:-18vmax;top:-22vmax;animation:drift1 26s ease-in-out infinite alternate}
+.aurora i:nth-child(2){background:radial-gradient(circle,#2f7d8c 0%,transparent 62%);right:-20vmax;top:10vmax;animation:drift2 32s ease-in-out infinite alternate}
+.aurora i:nth-child(3){background:radial-gradient(circle,#5b45b8 0%,transparent 62%);left:20vmax;bottom:-30vmax;animation:drift3 38s ease-in-out infinite alternate}
+.grain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.07;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+@keyframes drift1{to{transform:translate(14vmax,10vmax) scale(1.15)}}
+@keyframes drift2{to{transform:translate(-12vmax,8vmax) scale(.9)}}
+@keyframes drift3{to{transform:translate(-8vmax,-12vmax) scale(1.2)}}
+
+/* window */
+.shell{position:relative;z-index:1;padding-block:28px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;justify-content:center}
+.win{width:100%;max-width:1240px;background:var(--glass);border:1px solid var(--line-2);border-radius:18px;box-shadow:0 40px 120px -30px rgba(0,0,0,.8),0 0 0 1px rgba(0,0,0,.4) inset,0 1px 0 rgba(255,255,255,.08) inset;backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);overflow:hidden;animation:winIn .9s cubic-bezier(.2,.8,.2,1) both}
+@keyframes winIn{from{opacity:0;transform:translateY(18px) scale(.97);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+.titlebar{display:flex;align-items:center;gap:14px;height:46px;padding:0 16px;border-bottom:1px solid var(--line);background:linear-gradient(to bottom,rgba(255,255,255,.04),transparent)}
+.lights{display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;display:block;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.35)}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.brand{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;font-family:var(--display);font-weight:700;letter-spacing:.02em;font-size:14px}
+.orb{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--gold-2),var(--gold) 45%,#7a4d12 100%);box-shadow:0 0 18px rgba(233,184,101,.65);animation:pulse 3.6s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 30px rgba(233,184,101,.95),0 0 4px rgba(255,255,255,.6) inset}}
+.folk{border:1px solid var(--line-2);background:rgba(255,255,255,.04);color:var(--muted);border-radius:20px;padding:4px 12px 4px 26px;font-size:12px;font-weight:700;cursor:pointer;position:relative;transition:all .25s}
+.folk::before{content:"";position:absolute;left:9px;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;background:var(--muted);transition:all .25s}
+.folk[aria-pressed="true"]{color:#10261a;background:linear-gradient(180deg,#a9e8ad,#7cc983);border-color:rgba(170,240,175,.7);box-shadow:0 0 22px -6px rgba(143,214,148,.9)}
+.folk[aria-pressed="true"]::before{background:#10261a}
+.folk-badge{display:inline-block;margin-left:8px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(143,214,148,.16);color:var(--ok);border:1px solid rgba(143,214,148,.35);vertical-align:middle}
+.tb-right{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:60px;text-align:right}
+
+.body{display:grid;grid-template-columns:220px 1fr;min-height:720px}
+.side{border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:4px;background:rgba(0,0,0,.14)}
+.side .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);padding:6px 10px 8px}
+.tab{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:0;background:none;cursor:pointer;text-align:left;color:var(--muted);font-weight:600;transition:background .2s,color .2s}
+.tab svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tab:hover{background:var(--glass-2);color:var(--fg)}
+.tab[aria-selected="true"]{background:rgba(233,184,101,.12);color:var(--gold-2);box-shadow:inset 0 0 0 1px rgba(233,184,101,.22)}
+.tab .badge{margin-left:auto;font-family:var(--mono);font-size:11px;background:var(--gold);color:#241806;border-radius:20px;padding:0 7px;min-width:20px;text-align:center}
+.tab .badge[data-zero="true"]{background:var(--line-2);color:var(--muted)}
+.side-foot{margin-top:auto;padding:12px 10px 4px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}
+.side-foot b{color:var(--fg);font-family:var(--mono);font-weight:500}
+
+.pane{padding:24px;min-width:0;animation:paneIn .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes paneIn{from{opacity:.0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pane-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(24px,3vw,32px);line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1 em{font-style:normal;color:var(--gold)}
+.sub{color:var(--muted);margin:6px 0 0;max-width:60ch}
+h2{font-family:var(--display);font-weight:700;font-size:15px;margin:0 0 12px;letter-spacing:.01em}
+.grid2{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;align-items:start}
+.card{background:var(--glass-2);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.stack{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+/* viewer */
+.viewer{position:relative;height:260px;border-radius:12px;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,rgba(233,184,101,.10),transparent 60%),linear-gradient(180deg,rgba(255,255,255,.02),rgba(0,0,0,.25));border:1px dashed var(--line-2);transition:border-color .2s,background .2s}
+.viewer.drag{border-color:var(--gold);background:rgba(233,184,101,.08)}
+.viewer canvas{display:block;width:100%!important;height:100%!important}
+.viewer .hint{position:absolute;left:12px;bottom:10px;right:12px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted);pointer-events:none}
+.viewer .hint b{color:var(--fg);font-weight:600}
+.viewer .tag{position:absolute;top:10px;left:12px;font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:20px;background:rgba(0,0,0,.45);border:1px solid var(--line);color:var(--gold-2)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.stat{padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.2);border:1px solid var(--line);min-width:0}
+.stat span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.stat b{font-family:var(--mono);font-weight:500;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+
+/* form */
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+.f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.f.full{grid-column:1/-1}
+.f label,.f .l{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.f label output,.f .l output{font-family:var(--mono);color:var(--gold-2)}
+input[type=text],input[type=number],input[type=email],input[type=tel],select,textarea{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--line-2);border-radius:9px;padding:9px 11px;outline:none;transition:border-color .2s,box-shadow .2s;min-width:0}
+input:focus,select:focus,textarea:focus{border-color:rgba(233,184,101,.6);box-shadow:0 0 0 3px rgba(233,184,101,.14)}
+input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
+select option{background:#151722}
+input[type=range]{width:100%;accent-color:var(--gold)}
+.seg{display:flex;gap:4px;padding:3px;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:10px}
+.seg button{flex:1;border:0;background:none;padding:7px 8px;border-radius:7px;cursor:pointer;color:var(--muted);font-weight:600;font-size:13px;transition:background .2s,color .2s}
+.seg button[aria-pressed="true"]{background:linear-gradient(180deg,rgba(233,184,101,.28),rgba(233,184,101,.14));color:var(--gold-2);box-shadow:inset 0 0 0 1px rgba(233,184,101,.3)}
+.check{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:rgba(0,0,0,.18);cursor:pointer}
+.check input{accent-color:var(--gold);margin-top:3px}
+.check small{display:block;color:var(--muted);font-size:12px}
+.matinfo{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.swatch{width:12px;height:12px;border-radius:50%;display:inline-block;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line-2);background:rgba(255,255,255,.05);padding:9px 14px;border-radius:10px;font-weight:600;cursor:pointer;transition:transform .15s,background .2s,border-color .2s;white-space:nowrap}
+.btn:hover{background:rgba(255,255,255,.09)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(180deg,#f0c77d,#d9a04a);color:#21160a;border-color:rgba(255,220,160,.6);box-shadow:0 8px 24px -10px rgba(233,184,101,.8)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{background:none}
+.btn.small{padding:6px 10px;font-size:12px}
+.btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* result */
+.result{position:sticky;top:16px}
+.total{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.total .big{font-family:var(--display);font-weight:800;font-size:clamp(34px,4.4vw,46px);letter-spacing:-.02em;line-height:1;background:linear-gradient(180deg,var(--gold-2),var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
+.total .per{font-family:var(--mono);color:var(--muted);font-size:12px;text-align:right}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0}
+.kpi{padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.2);min-width:0}
+.kpi span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.kpi b{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+.bar{display:flex;height:12px;border-radius:8px;overflow:hidden;background:rgba(0,0,0,.35);margin:6px 0 14px}
+.bar i{display:block;height:100%;transition:flex-grow .6s cubic-bezier(.2,.8,.2,1)}
+.lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.lines li{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:4px 10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line)}
+.lines li:last-child{border-bottom:0}
+.lines .dot{width:10px;height:10px;border-radius:3px;align-self:center}
+.lines .nm{font-weight:600}
+.lines .v{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.lines .fx{grid-column:2/4;font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.lines li.sum{border-top:1px solid var(--line-2);border-bottom:0;margin-top:2px}
+.lines li.sum .nm{color:var(--gold-2)}
+.note{font-size:12px;color:var(--muted);margin:10px 0 0}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:720px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;background:rgba(0,0,0,.2)}
+tr:last-child td{border-bottom:0}
+td input,td select{padding:6px 8px}
+td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.icon-btn{border:0;background:none;color:var(--muted);cursor:pointer;padding:6px;border-radius:7px}
+.icon-btn:hover{color:var(--rose);background:rgba(232,139,139,.1)}
+
+/* receipt */
+.paper{background:var(--paper);color:var(--ink);border-radius:6px;padding:28px 26px;box-shadow:0 30px 60px -20px rgba(0,0,0,.7);position:relative;font-size:13px;min-width:0}
+.paper::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;background:linear-gradient(-45deg,transparent 7px,var(--paper) 0) 0 0/14px 10px repeat-x,linear-gradient(45deg,transparent 7px,var(--paper) 0) 0 0/14px 10px repeat-x}
+.paper h3{font-family:var(--display);font-size:20px;margin:0;padding-right:84px;text-wrap:balance}
+#tab-receipt .grid2{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}
+.paper .meta{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--ink-2);font-size:12px;margin:10px 0 16px;border-bottom:1px dashed #c9c3b4;padding-bottom:12px}
+.paper .meta b{color:var(--ink)}
+.paper table{min-width:0}
+.paper th{background:none;color:var(--ink-2);border-bottom:1px solid #d9d3c4;padding:6px 4px}
+.paper td{border-bottom:1px solid #ebe6da;padding:7px 4px;color:var(--ink)}
+.paper td small{display:block;color:var(--ink-2);font-size:11px}
+.paper .tot{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px;padding-top:12px;border-top:2px solid var(--ink)}
+.paper .tot b{font-family:var(--display);font-size:24px}
+.paper .foot{margin-top:18px;font-size:11px;color:var(--ink-2)}
+.paper .stamp{position:absolute;right:22px;top:22px;border:2px solid #b8862f;color:#b8862f;border-radius:50%;width:74px;height:74px;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:10px;text-align:center;line-height:1.1;transform:rotate(-12deg);opacity:.85}
+.items-ed{display:flex;flex-direction:column;gap:8px}
+.item-ed{display:grid;grid-template-columns:minmax(0,1fr) 70px 110px 32px;gap:8px;align-items:center}
+.empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed var(--line-2);border-radius:12px}
+
+.manual-note{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid rgba(233,184,101,.4);background:rgba(233,184,101,.08);font-size:13px}
+.manual-note span{flex:1 1 220px;min-width:0}
+.est-dep.off{opacity:.45}
+
+/* photo ruler */
+.measure{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
+.m-steps{display:flex;gap:6px;flex-wrap:wrap}
+.m-step{border:1px solid var(--line-2);background:none;color:var(--muted);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer}
+.m-step[data-state="active"]{border-color:var(--gold);color:var(--gold-2);background:rgba(233,184,101,.12)}
+.m-step[data-state="done"]{border-color:rgba(143,214,148,.5);color:var(--ok)}
+.m-hint{margin:10px 0;font-size:13px;color:var(--fg)}
+.m-canvas-wrap{border-radius:10px;overflow:hidden;background:#000;line-height:0}
+#mCanvas{width:100%;height:auto;display:block;cursor:crosshair;touch-action:none}
+.m-result{font-family:var(--mono);font-variant-numeric:tabular-nums;padding:9px 0;color:var(--gold-2)}
+.pre{margin-top:14px;padding:14px;border-radius:12px;border:1px solid rgba(233,184,101,.35);background:linear-gradient(180deg,rgba(233,184,101,.10),rgba(233,184,101,.03))}
+.pre-head{font-weight:700;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pre-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid var(--line-2);color:var(--muted)}
+.pre-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.pre-cell{padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid var(--line);min-width:0}
+.pre-cell span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.pre-cell b{display:block;font-family:var(--display);font-size:24px;color:var(--gold-2);font-variant-numeric:tabular-nums}
+.pre-cell small{display:block;color:var(--muted);font-size:11.5px}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:rgba(20,22,32,.92);border:1px solid rgba(233,184,101,.4);padding:10px 16px;border-radius:12px;opacity:0;transition:opacity .3s,transform .3s;z-index:10;pointer-events:none;backdrop-filter:blur(12px);max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* plain-text fallback box */
+textarea.mono{font-family:var(--mono);font-size:12px;min-height:140px;resize:vertical}
+
+@media (max-width:960px){
+  .grid2,#tab-receipt .grid2{grid-template-columns:minmax(0,1fr)}
+  .result{position:static}
+}
+@media (max-width:760px){
+  .shell{padding-block:12px 28px}
+  .body{grid-template-columns:minmax(0,1fr);min-height:0}
+  .side{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px}
+  .side .lbl,.side-foot{display:none}
+  .tab{flex:none}
+  .pane{padding:16px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fields{grid-template-columns:minmax(0,1fr)}
+  .item-ed{grid-template-columns:minmax(0,1fr) 56px 90px 32px}
+  .brand{justify-content:flex-start}
+  .tb-right{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+@media print{
+  .aurora,.grain,.titlebar,.side,.no-print,.toast{display:none!important}
+  body{background:#fff}
+  .win{border:0;box-shadow:none;background:none;backdrop-filter:none}
+  .body{display:block}
+  .pane:not(#tab-receipt){display:none!important}
+  #tab-receipt .grid2{display:block}
+  .paper{box-shadow:none}
+  .paper::after{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="grain" aria-hidden="true"></div>
+
+<main class="shell">
+<div class="win">
+  <header class="titlebar">
+    <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+    <div class="brand"><span class="orb" aria-hidden="true"></span>Меркурий 3D</div>
+    <button class="folk" id="folk" type="button" aria-pressed="false" title="Минимальная наценка, цена ниже рынка, но не в убыток">Народный тариф</button>
+    <span class="tb-right" id="clock"></span>
+  </header>
+  <div class="body">
+    <nav class="side" role="tablist" aria-label="Разделы">
+      <div class="lbl">Расчёт</div>
+      <button class="tab" role="tab" data-tab="print" aria-selected="true">
+        <svg viewBox="0 0 24 24"><path d="M4 20h16M6 20V9l6-5 6 5v11"/><path d="M9 14h6"/></svg>3D‑печать</button>
+      <button class="tab" role="tab" data-tab="scan" aria-selected="false">
+        <svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M4 12h16"/></svg>3D‑сканирование</button>
+      <div class="lbl" style="margin-top:10px">Документы</div>
+      <button class="tab" role="tab" data-tab="receipt" aria-selected="false">
+        <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Квитанция <span class="badge" id="badge" data-zero="true">0</span></button>
+      <div class="lbl" style="margin-top:10px">Настройки</div>
+      <button class="tab" role="tab" data-tab="materials" aria-selected="false">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Материалы</button>
+      <button class="tab" role="tab" data-tab="settings" aria-selected="false">
+        <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Тарифы и оборудование</button>
+      <div class="side-foot">Данные хранятся в этом браузере.<br>Квитанций выписано: <b id="issued">0</b></div>
+    </nav>
+
+    <!-- PRINT -->
+    <section class="pane" id="tab-print" role="tabpanel">
+      <div class="pane-head">
+        <div>
+          <h1>Честная цена <em>3D‑печати</em></h1>
+          <p class="sub">Загрузите STL — объём, площадь и габариты посчитаются из сетки. Каждая строка расчёта показывает формулу, по которой получена.</p>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="stack">
+          <div class="card">
+            <div class="viewer" id="viewer">
+              <span class="tag" id="modelTag">Образец · узел‑тор</span>
+              <div class="hint"><span>Перетащите <b>.stl</b> сюда или</span><span class="row" style="gap:6px;pointer-events:auto"><button class="btn small ghost" type="button" id="clearStl">Убрать модель</button><button class="btn small" type="button" id="pickStl">Выбрать файл</button></span></div>
+              <input type="file" id="stlFile" accept=".stl,model/stl,application/sla,application/octet-stream" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1" aria-hidden="true">
+            </div>
+            <div class="stats">
+              <div class="stat"><span>Объём</span><b id="sVol">—</b></div>
+              <div class="stat"><span>Площадь</span><b id="sArea">—</b></div>
+              <div class="stat"><span>Габариты, мм</span><b id="sBox">—</b></div>
+              <div class="stat"><span>Треугольники</span><b id="sTri">—</b></div>
+            </div>
+          </div>
+
+          <div class="card" id="descCard">
+            <h2>Пред‑расчёт по описанию и фото</h2>
+            <p class="note" style="margin:-4px 0 12px">Нет STL? Опишите деталь и, если есть, сфотографируйте её сверху рядом с линейкой, банковской картой или монетой.</p>
+            <div class="fields">
+              <div class="f full">
+                <label for="dText">Что это и для чего</label>
+                <textarea id="dText" rows="3" placeholder="Например: кронштейн крепления противотуманной фары, Skoda Octavia A7, левый">Кронштейн крепления противотуманной фары для Skoda Octavia</textarea>
+              </div>
+              <div class="f full">
+                <span class="l">Фото детали <span>необязательно</span></span>
+                <div class="row">
+                  <button class="btn small" type="button" id="dPhotoBtn"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Сфотографировать или выбрать</button>
+                  <span class="note" id="dPhotoName" style="margin:0"></span>
+                </div>
+                <input type="file" id="dPhoto" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1" aria-hidden="true">
+              </div>
+            </div>
+
+            <div id="mBox" class="measure" hidden>
+              <div class="m-steps" role="list">
+                <button type="button" class="m-step" data-step="ref" role="listitem">1 · Эталон</button>
+                <button type="button" class="m-step" data-step="len" role="listitem">2 · Длина</button>
+                <button type="button" class="m-step" data-step="wid" role="listitem">3 · Ширина</button>
+              </div>
+              <p class="m-hint" id="mHint"></p>
+              <div class="m-canvas-wrap"><canvas id="mCanvas" aria-label="Фото детали для измерения"></canvas></div>
+              <div class="fields" style="margin-top:12px">
+                <div class="f">
+                  <label for="mRef">Эталон на фото</label>
+                  <select id="mRef">
+                    <option value="100">Линейка: отрезок 100 мм</option>
+                    <option value="85.6">Банковская карта, длинная сторона 85,6 мм</option>
+                    <option value="25">Монета 5 ₽ — 25 мм</option>
+                    <option value="22">Монета 10 ₽ — 22 мм</option>
+                    <option value="0">Свой размер…</option>
+                  </select>
+                </div>
+                <div class="f">
+                  <label for="mRefLen">Длина эталона, мм</label>
+                  <input type="number" id="mRefLen" min="1" step="0.1" value="100">
+                </div>
+                <div class="f">
+                  <label for="mHeight">Толщина / высота детали, мм <span>пусто = оценка</span></label>
+                  <input type="number" id="mHeight" min="0" step="1" placeholder="оценка">
+                </div>
+                <div class="f">
+                  <span class="l">Измерено</span>
+                  <div class="m-result" id="mResult">—</div>
+                </div>
+              </div>
+              <div class="row" style="margin-top:10px">
+                <button class="btn small ghost" type="button" id="mUndo">Отменить точку</button>
+                <button class="btn small ghost" type="button" id="mReset">Начать заново</button>
+                <button class="btn small ghost" type="button" id="mRemove">Убрать фото</button>
+              </div>
+            </div>
+
+            <div class="row" style="margin-top:14px">
+              <button class="btn primary" type="button" id="dGo"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg>Сделать пред‑расчёт</button>
+              <button class="btn ghost small" type="button" id="dStop" hidden>Стоп</button>
+            </div>
+            <p class="note" id="dOut"></p>
+
+            <div class="pre" id="dSummary" hidden>
+              <div class="pre-head">Предварительная цена <span class="pre-tag">до проверки детали</span></div>
+              <div class="pre-grid">
+                <div class="pre-cell"><span>3D‑печать</span><b id="dSumPrint">—</b><small id="dSumPrintSub"></small></div>
+                <div class="pre-cell"><span>3D‑сканирование</span><b id="dSumScan">—</b><small id="dSumScanSub"></small></div>
+              </div>
+              <div class="row" style="margin-top:12px">
+                <button class="btn small" type="button" id="dAddPrint">+ Печать в квитанцию</button>
+                <button class="btn small" type="button" id="dAddScan">+ Скан в квитанцию</button>
+              </div>
+              <p class="note">Подробный разбор цены — справа (печать) и во вкладке «3D‑сканирование». Окончательная цена — после замера или STL.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Технология и материал</h2>
+            <div class="fields">
+              <div class="f full">
+                <span class="l">Технология</span>
+                <div class="seg" id="techSeg">
+                  <button type="button" data-tech="FDM" aria-pressed="true">FDM · пластик</button>
+                  <button type="button" data-tech="SLA" aria-pressed="false">SLA · смола</button>
+                  <button type="button" data-tech="SLS" aria-pressed="false">SLS · порошок</button>
+                </div>
+              </div>
+              <div class="f full">
+                <label for="pMat">Материал</label>
+                <select id="pMat"></select>
+                <div class="matinfo" id="matInfo"></div>
+              </div>
+              <div class="f fdm-only">
+                <label for="pInfill">Заполнение <output id="oInfill">20%</output></label>
+                <input type="range" id="pInfill" min="0" max="100" step="5" value="20">
+              </div>
+              <div class="f fdm-only">
+                <label for="pWalls">Периметров (стенки)</label>
+                <input type="number" id="pWalls" min="1" max="10" step="1" value="3">
+              </div>
+              <div class="f no-sls">
+                <label for="pSupport">Поддержки <output id="oSupport">10%</output></label>
+                <input type="range" id="pSupport" min="0" max="60" step="5" value="10">
+              </div>
+              <div class="f">
+                <label for="pQty">Количество, шт</label>
+                <input type="number" id="pQty" min="1" step="1" value="1">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Время и работа</h2>
+            <div class="fields">
+              <div class="f">
+                <label for="pVol">Объём модели, см³</label>
+                <input type="number" id="pVol" min="0" step="0.1">
+              </div>
+              <div class="f">
+                <label for="pTime">Время из слайсера, ч <span>0 = оценка</span></label>
+                <input type="number" id="pTime" min="0" step="0.1" value="0">
+              </div>
+              <div class="f">
+                <label for="pPrep">Подготовка заказа, мин</label>
+                <input type="number" id="pPrep" min="0" step="5" value="15">
+              </div>
+              <div class="f">
+                <label for="pPost">Постобработка на 1 шт, мин</label>
+                <input type="number" id="pPost" min="0" step="5" value="10">
+              </div>
+              <div class="f">
+                <label for="pMarkup">Наценка <output id="oMarkup">35%</output></label>
+                <input type="range" id="pMarkup" min="0" max="200" step="5" value="35">
+              </div>
+              <div class="f">
+                <label for="pName">Название позиции</label>
+                <input type="text" id="pName" value="Деталь по модели заказчика">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="card result" aria-live="polite">
+          <div class="total">
+            <div>
+              <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Цена для клиента</div>
+              <div class="big" id="rTotal">—</div>
+            </div>
+            <div class="per" id="rPer"></div>
+          </div>
+          <div class="kpis">
+            <div class="kpi"><span>Масса</span><b id="kMass">—</b></div>
+            <div class="kpi"><span>Время</span><b id="kTime">—</b></div>
+            <div class="kpi"><span>Прибыль</span><b id="kProfit">—</b></div>
+          </div>
+          <div class="bar" id="rBar"></div>
+          <ul class="lines" id="rLines"></ul>
+          <div class="row" style="margin-top:14px">
+            <button class="btn primary" id="addPrint" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>В квитанцию</button>
+            <button class="btn ghost" id="copyPrint" type="button">Скопировать расчёт</button>
+          </div>
+          <p class="note" id="rNote"></p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- SCAN -->
+    <section class="pane" id="tab-scan" role="tabpanel" hidden>
+      <div class="pane-head">
+        <div>
+          <h1>Стоимость <em>3D‑сканирования</em></h1>
+          <p class="sub">Цена складывается из времени съёмки, обработки облака точек, расходников, выезда и, при необходимости, построения CAD‑модели. Калибровка сканера — разовая настройка и в цену заказа не входит.</p>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="stack">
+          <div class="card">
+            <h2>Объект</h2>
+            <div class="manual-note" id="sManualNote" hidden>
+              <span>Время задано вручную, поэтому размер, поверхность и точность на цену сейчас не влияют.</span>
+              <button class="btn small" type="button" id="sAutoBtn">Считать по размеру</button>
+            </div>
+            <div class="fields">
+              <div class="f full est-dep">
+                <span class="l">Размер объекта</span>
+                <div class="seg" id="sizeSeg">
+                  <button type="button" data-v="S" aria-pressed="false">до 10 см</button>
+                  <button type="button" data-v="M" aria-pressed="true">10–30 см</button>
+                  <button type="button" data-v="L" aria-pressed="false">30–100 см</button>
+                  <button type="button" data-v="XL" aria-pressed="false">&gt; 1 м</button>
+                </div>
+              </div>
+              <div class="f full est-dep">
+                <span class="l">Поверхность и геометрия</span>
+                <div class="seg" id="cxSeg">
+                  <button type="button" data-v="1" aria-pressed="false">Простая</button>
+                  <button type="button" data-v="1.4" aria-pressed="true">Средняя</button>
+                  <button type="button" data-v="1.9" aria-pressed="false">Сложная</button>
+                </div>
+              </div>
+              <div class="f full est-dep">
+                <span class="l">Точность сканера</span>
+                <div class="seg" id="accSeg">
+                  <button type="button" data-v="1" aria-pressed="false">0,1 мм</button>
+                  <button type="button" data-v="1.3" aria-pressed="true">0,05 мм</button>
+                  <button type="button" data-v="1.8" aria-pressed="false">0,02 мм</button>
+                </div>
+              </div>
+              <div class="f">
+                <label for="sQty">Количество объектов</label>
+                <input type="number" id="sQty" min="1" step="1" value="1">
+              </div>
+              <div class="f">
+                <label for="sKm">Выезд, км в одну сторону</label>
+                <input type="number" id="sKm" min="0" step="1" value="0">
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Время</h2>
+            <div class="fields">
+              <div class="f">
+                <label for="sScanMin">Съёмка на 1 объект, мин <span>0 = оценка</span></label>
+                <input type="number" id="sScanMin" min="0" step="1" value="0">
+              </div>
+              <div class="f">
+                <label for="sProcMin">Обработка на 1 объект, мин <span>0 = оценка</span></label>
+                <input type="number" id="sProcMin" min="0" step="1" value="0">
+              </div>
+              <div class="f full">
+                <span class="l">Быстрая съёмка</span>
+                <div class="row" id="scanPresets">
+                  <button class="btn small" type="button" data-scan="10" data-proc="3">10 мин + 3 обработка</button>
+                  <button class="btn small" type="button" data-scan="20" data-proc="5">20 + 5</button>
+                  <button class="btn small" type="button" data-scan="45" data-proc="10">45 + 10</button>
+                  <button class="btn small ghost" type="button" data-scan="0" data-proc="0">Оценка по размеру</button>
+                </div>
+              </div>
+              <div class="f">
+                <label for="sMarket">Цена у конкурентов, ₽ <span>пусто = по себестоимости</span></label>
+                <input type="number" id="sMarket" min="0" step="100" placeholder="не задано">
+              </div>
+              <div class="f">
+                <label for="sBelow">Ниже рынка на <output id="oBelow">10%</output></label>
+                <input type="range" id="sBelow" min="0" max="40" step="1" value="10">
+              </div>
+              <div class="f full">
+                <label for="sMinOrder">Минимальный заказ, ₽</label>
+                <input type="number" id="sMinOrder" min="0" step="100" value="0">
+              </div>
+            </div>
+            <p class="note">Если время задано вручную, коэффициенты сложности, точности и текстуры к нему не применяются: они нужны только для оценки.</p>
+          </div>
+          <div class="card">
+            <h2>Опции</h2>
+            <div class="fields">
+              <label class="check f full"><input type="checkbox" id="sSpray" checked><span>Матирующий спрей<small>Нужен для блестящих, прозрачных и чёрных поверхностей</small></span></label>
+              <label class="check f full"><input type="checkbox" id="sTex"><span>Захват текстуры и цвета<small>+25% к времени съёмки</small></span></label>
+              <div class="f">
+                <label for="sCad">Реверс‑инжиниринг в CAD, ч</label>
+                <input type="number" id="sCad" min="0" step="0.5" value="0">
+              </div>
+              <div class="f">
+                <label for="sMarkup">Наценка <output id="oSMarkup">25%</output></label>
+                <input type="range" id="sMarkup" min="0" max="200" step="5" value="25">
+              </div>
+              <div class="f full">
+                <label for="sName">Название позиции</label>
+                <input type="text" id="sName" value="3D‑сканирование объекта">
+              </div>
+            </div>
+          </div>
+        </div>
+        <aside class="card result" aria-live="polite">
+          <div class="total">
+            <div>
+              <div class="price-lbl" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Цена для клиента</div>
+              <div class="big" id="scTotal">—</div>
+            </div>
+            <div class="per" id="scPer"></div>
+          </div>
+          <div class="kpis">
+            <div class="kpi"><span>Съёмка</span><b id="scK1">—</b></div>
+            <div class="kpi"><span>Обработка</span><b id="scK2">—</b></div>
+            <div class="kpi"><span>Прибыль</span><b id="scK3">—</b></div>
+          </div>
+          <div class="bar" id="scBar"></div>
+          <ul class="lines" id="scLines"></ul>
+          <div class="row" style="margin-top:14px">
+            <button class="btn primary" id="addScan" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>В квитанцию</button>
+          </div>
+          <p class="note" id="scWarn" style="color:var(--rose)" hidden></p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- RECEIPT -->
+    <section class="pane" id="tab-receipt" role="tabpanel" hidden>
+      <div class="pane-head no-print">
+        <div>
+          <h1>Квитанция</h1>
+          <p class="sub">Позиции из калькуляторов собираются здесь. Поправьте названия и цены, заполните клиента и отправьте.</p>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="stack no-print">
+          <div class="card">
+            <h2>Клиент</h2>
+            <div class="fields">
+              <div class="f full"><label for="cName">Имя или организация</label><input type="text" id="cName" autocomplete="off"></div>
+              <div class="f"><label for="cEmail">E‑mail</label><input type="email" id="cEmail" autocomplete="off"></div>
+              <div class="f"><label for="cPhone">Телефон</label><input type="tel" id="cPhone" autocomplete="off"></div>
+              <div class="f full"><label for="cNote">Комментарий в квитанции</label><input type="text" id="cNote" value="Срок изготовления — 3 рабочих дня."></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Позиции</h2><button class="btn small" id="addCustom" type="button">+ Своя позиция</button></div>
+            <div class="items-ed" id="itemsEd"></div>
+          </div>
+          <div class="card">
+            <h2>Отправка</h2>
+            <div class="row" id="sendRow">
+              <button class="btn primary" id="btnMail" type="button"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/></svg>Отправить по почте</button>
+              <button class="btn" id="btnPrint" type="button">PDF / печать</button>
+              <button class="btn ghost" id="btnCopy" type="button">Копировать текст</button>
+            </div>
+            <p class="note" id="sendNote"></p>
+            <textarea class="mono" id="plainOut" readonly hidden aria-label="Текст квитанции"></textarea>
+            <div class="row" style="margin-top:12px"><button class="btn small ghost" id="btnIssue" type="button">Закрыть квитанцию и начать новую</button></div>
+          </div>
+        </div>
+        <div class="paper" id="paper"></div>
+      </div>
+    </section>
+
+    <!-- MATERIALS -->
+    <section class="pane" id="tab-materials" role="tabpanel" hidden>
+      <div class="pane-head">
+        <div>
+          <h1>Материалы</h1>
+          <p class="sub">Цены — ваши закупочные за килограмм. Отход — доля материала, которая уходит в мусор (юбка, промывка, отработанный порошок). Брак — вероятность перепечатки.</p>
+        </div>
+        <div class="row"><button class="btn small" id="addMat" type="button">+ Материал</button><button class="btn small ghost" id="resetMat" type="button">Сбросить к образцам</button></div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Цвет</th><th>Название</th><th>Техн.</th><th>Плотность, г/см³</th><th>Цена за кг</th><th>Отход, %</th><th>Брак, %</th><th></th></tr></thead>
+          <tbody id="matBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="pane" id="tab-settings" role="tabpanel" hidden>
+      <div class="pane-head">
+        <div>
+          <h1>Тарифы и оборудование</h1>
+          <p class="sub">Эти числа определяют себестоимость. Амортизация = цена принтера ÷ ресурс в часах + обслуживание за час.</p>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <h2>Мастерская</h2>
+          <div class="fields" id="setCompany"></div>
+        </div>
+        <div class="card">
+          <h2>Ставки</h2>
+          <div class="fields" id="setRates"></div>
+        </div>
+        <div class="card">
+          <h2>Принтеры</h2>
+          <div class="tbl-wrap"><table><thead><tr><th>Техн.</th><th>Цена принтера</th><th>Ресурс, ч</th><th>Обслуж., /ч</th><th>Мощность, кВт</th><th>Расходники на заказ</th><th>Скорость</th></tr></thead><tbody id="prnBody"></tbody></table></div>
+          <p class="note">Скорость: для FDM — средний расход пластика, мм³/с; для SLA и SLS — секунд на слой при высоте слоя из соседнего поля.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="vendor/three.min.js"></script>
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const KEY = 'merc3d.v1';
+const framed = (() => { try { return window.self !== window.top } catch (e) { return true } })();
+
+const DEFAULT_MATERIALS = [
+  { id:'pla',   name:'PLA',                 tech:'FDM', density:1.24, price:1500,  waste:5,  fail:3,  color:'#E9E4D8' },
+  { id:'petg',  name:'PETG',                tech:'FDM', density:1.27, price:1700,  waste:5,  fail:4,  color:'#7FC8D6' },
+  { id:'abs',   name:'ABS',                 tech:'FDM', density:1.04, price:1600,  waste:6,  fail:8,  color:'#D8D8D8' },
+  { id:'asa',   name:'ASA (УФ‑стойкий)',    tech:'FDM', density:1.07, price:2200,  waste:6,  fail:7,  color:'#C9C2B0' },
+  { id:'tpu',   name:'TPU 95A (гибкий)',    tech:'FDM', density:1.21, price:2800,  waste:8,  fail:10, color:'#3C3F48' },
+  { id:'pa12',  name:'Нейлон PA12',         tech:'FDM', density:1.01, price:4500,  waste:8,  fail:9,  color:'#F2EFE6' },
+  { id:'pc',    name:'Поликарбонат PC',     tech:'FDM', density:1.20, price:3500,  waste:8,  fail:10, color:'#B9D3E8' },
+  { id:'pacf',  name:'PA‑CF (углеволокно)', tech:'FDM', density:1.15, price:6500,  waste:6,  fail:6,  color:'#2A2B30' },
+  { id:'rstd',  name:'Смола стандартная',   tech:'SLA', density:1.12, price:3000,  waste:10, fail:6,  color:'#8A8E99' },
+  { id:'rabs',  name:'Смола ABS‑like',      tech:'SLA', density:1.15, price:3800,  waste:10, fail:6,  color:'#5E6B78' },
+  { id:'rtgh',  name:'Смола Tough',         tech:'SLA', density:1.17, price:5500,  waste:10, fail:7,  color:'#C27A44' },
+  { id:'rcast', name:'Смола выжигаемая',    tech:'SLA', density:1.10, price:12000, waste:12, fail:10, color:'#3E7D5A' },
+  { id:'sls12', name:'PA12 порошок',        tech:'SLS', density:1.01, price:9000,  waste:30, fail:4,  color:'#EDEBE4' },
+];
+const DEFAULT_SETTINGS = {
+  company:'Мастерская «Меркурий 3D»', companyEmail:'', companyPhone:'', companyInn:'', currency:'₽',
+  tariff:7.5, operatorRate:900, scanRate:300, procRate:150, procShare:25, cadRate:500, kmRate:15, sprayCost:50,
+  tax:6, nextNo:1,
+  printers:{
+    FDM:{ price:120000,  life:8000,  maint:15,  power:0.15, consum:0,   speed:10, layer:0.2 },
+    SLA:{ price:90000,   life:4000,  maint:40,  power:0.10, consum:90,  speed:9,  layer:0.05 },
+    SLS:{ price:2500000, life:15000, maint:400, power:2.5,  consum:300, speed:25, layer:0.1 },
+  }
+};
+const SCAN = { hours:{S:.5,M:1,L:2.5,XL:5} };
+
+let st = load();
+function load(){
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(KEY) || 'null') } catch(e){}
+  const base = { materials: structuredClone(DEFAULT_MATERIALS), settings: structuredClone(DEFAULT_SETTINGS),
+    items: [], client:{name:'', email:'', phone:'', note:'Срок изготовления — 3 рабочих дня.'}, issued:0, sampleSeeded:false };
+  if (!d) return base;
+  if (d.settings && !d.v2){ if (d.settings.procRate === 2000) d.settings.procRate = 1200; d.v2 = true }
+  if (d.settings && !d.v4){
+    // народные ставки: заменяем только те, что пользователь не менял
+    const OLD = { scanRate:2500, procRate:1200, cadRate:3000, kmRate:30, sprayCost:450 };
+    const NEW = { scanRate:300, procRate:150, cadRate:500, kmRate:15, sprayCost:50 };
+    Object.keys(OLD).forEach(k => { if (d.settings[k] === OLD[k] || (k === 'procRate' && d.settings[k] === 2000)) d.settings[k] = NEW[k] });
+    d.v4 = true;
+  }
+  if (d.settings && !d.v5){
+    // печать — прежняя ставка оператора (народные ставки только для скана)
+    if (d.settings.operatorRate === 150) d.settings.operatorRate = 900;
+    d.v5 = true;
+  }
+  if (!d.v3){
+    // убрать строки‑примеры, которые раньше добавлялись в квитанцию при первом запуске
+    d.items = (d.items || []).filter(i => !/^Пример:/.test(i.name || ''));
+    if (d.client && /^Пример:/.test(d.client.name || '')){ d.client.name = ''; d.client.email = '' }
+    d.v3 = true;
+  }
+  return { ...base, ...d, settings:{ ...base.settings, ...d.settings, printers:{ ...base.settings.printers, ...(d.settings||{}).printers } } };
+}
+let saveT;
+function save(){ clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(st)) } catch(e){} }, 200) }
+
+const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits:0 });
+const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits:1 });
+const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits:2 });
+const money = v => nf0.format(Math.round(v)) + ' ' + st.settings.currency;
+const money2 = v => nf2.format(v) + ' ' + st.settings.currency;
+const hrs = h => { const m = Math.round(h*60); return m < 60 ? m + ' мин' : Math.floor(m/60) + ' ч ' + String(m%60).padStart(2,'0') + ' м' };
+const num = (id, def=0) => { const v = parseFloat($(id).value.replace(',', '.')); return isFinite(v) ? v : def };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400) }
+
+/* tabs */
+function showTab(name){
+  $$('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  $$('.pane').forEach(p => { p.hidden = p.id !== 'tab-' + name; if (!p.hidden){ p.style.animation='none'; p.offsetHeight; p.style.animation='' } });
+  try { localStorage.setItem(KEY + '.tab', name) } catch(e){}
+  if (name === 'print') resizeViewer();
+}
+$$('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+/* clock */
+const tick = () => { $('#clock').textContent = new Date().toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}) };
+tick(); setInterval(tick, 15000);
+
+/* segmented controls */
+function seg(sel, onChange){
+  const root = $(sel);
+  root.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    $$('button', root).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    onChange();
+  });
+  return () => $('button[aria-pressed="true"]', root);
+}
+
+/* ---------------- geometry ---------------- */
+let model = null; // {vol mm3, area mm2, bbox [x,y,z], tris, positions Float32Array}
+function analyse(pos){
+  let vol = 0, area = 0;
+  const mn = [Infinity,Infinity,Infinity], mx = [-Infinity,-Infinity,-Infinity];
+  for (let i = 0; i < pos.length; i += 9){
+    const ax=pos[i],ay=pos[i+1],az=pos[i+2],bx=pos[i+3],by=pos[i+4],bz=pos[i+5],cx=pos[i+6],cy=pos[i+7],cz=pos[i+8];
+    vol += (ax*(by*cz-bz*cy) - ay*(bx*cz-bz*cx) + az*(bx*cy-by*cx)) / 6;
+    const ux=bx-ax,uy=by-ay,uz=bz-az,vx=cx-ax,vy=cy-ay,vz=cz-az;
+    const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+    area += Math.hypot(nx,ny,nz)/2;
+    for (let k = 0; k < 9; k++){ const a = k%3, v = pos[i+k]; if (v<mn[a]) mn[a]=v; if (v>mx[a]) mx[a]=v }
+  }
+  return { vol:Math.abs(vol), area, bbox:[mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]], tris:pos.length/9, positions:pos };
+}
+function parseSTL(buf){
+  const dv = new DataView(buf);
+  if (buf.byteLength >= 84){
+    const n = dv.getUint32(80, true);
+    const head = new TextDecoder().decode(new Uint8Array(buf, 0, 5));
+    if (n > 0 && 84 + n*50 <= buf.byteLength && (84 + n*50 === buf.byteLength || head !== 'solid')){
+      const pos = new Float32Array(n*9);
+      for (let i = 0; i < n; i++){
+        const o = 84 + i*50 + 12;
+        for (let k = 0; k < 9; k++) pos[i*9+k] = dv.getFloat32(o + k*4, true);
+      }
+      return pos;
+    }
+  }
+  const txt = new TextDecoder().decode(buf);
+  const re = /vertex\s+([-+\d.eE]+)\s+([-+\d.eE]+)\s+([-+\d.eE]+)/g;
+  const arr = []; let m;
+  while ((m = re.exec(txt))) arr.push(+m[1], +m[2], +m[3]);
+  if (!arr.length || arr.length % 9) throw new Error('Файл не похож на STL');
+  return new Float32Array(arr);
+}
+
+/* ---------------- viewer ---------------- */
+let three = null;
+function initViewer(){
+  if (!window.THREE) { $('#modelTag').textContent += ' · просмотр недоступен'; return }
+  const el = $('#viewer');
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  el.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(35, 1, .1, 5000);
+  cam.position.set(0, 40, 160);
+  scene.add(new THREE.HemisphereLight(0xfff1d6, 0x101020, .9));
+  const key = new THREE.DirectionalLight(0xffffff, .9); key.position.set(60, 120, 80); scene.add(key);
+  const rim = new THREE.DirectionalLight(0x72d5c6, .6); rim.position.set(-100, -20, -80); scene.add(rim);
+  const grid = new THREE.GridHelper(200, 20, 0x5a4a2a, 0x22242e); grid.position.y = -FIT - 2; grid.material.opacity = .5; grid.material.transparent = true; scene.add(grid);
+  const mat = new THREE.MeshStandardMaterial({ color:0xe9b865, metalness:.15, roughness:.45 });
+  const group = new THREE.Group(); scene.add(group);
+  three = { renderer, scene, cam, mat, group, grid, mesh:null, drag:null, rotY:0, rotX:-.35, auto:true };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.addEventListener('pointerdown', e => { if (e.target.closest('button, label, input')) return; three.drag = { x:e.clientX, y:e.clientY, ry:three.rotY, rx:three.rotX }; three.auto = false; el.setPointerCapture(e.pointerId) });
+  el.addEventListener('pointermove', e => { if (!three.drag) return; three.rotY = three.drag.ry + (e.clientX - three.drag.x) * .01; three.rotX = Math.max(-1.4, Math.min(1.4, three.drag.rx + (e.clientY - three.drag.y) * .01)) });
+  el.addEventListener('pointerup', () => { three.drag = null });
+  const loop = () => {
+    if (three.auto && !reduced) three.rotY += .006;
+    group.rotation.set(three.rotX, three.rotY, 0);
+    renderer.render(scene, cam);
+    requestAnimationFrame(loop);
+  };
+  resizeViewer(); loop();
+  window.addEventListener('resize', resizeViewer);
+}
+function resizeViewer(){
+  if (!three) return;
+  const el = $('#viewer'); const w = el.clientWidth, h = el.clientHeight;
+  if (!w || !h) return;
+  three.renderer.setSize(w, h, false); three.cam.aspect = w/h; three.cam.updateProjectionMatrix();
+  // модель вписана в сферу радиусом FIT; камера отъезжает так, чтобы сфера влезла и по высоте, и по ширине
+  const half = THREE.MathUtils.degToRad(three.cam.fov / 2);
+  const halfMin = Math.min(half, Math.atan(Math.tan(half) * three.cam.aspect));
+  const d = FIT / Math.sin(halfMin) * 1.12;
+  const tilt = THREE.MathUtils.degToRad(12);
+  three.cam.position.set(0, d * Math.sin(tilt), d * Math.cos(tilt));
+  three.cam.lookAt(0, -4, 0); // чуть ниже центра: внизу окна лежит подпись с кнопкой
+}
+const FIT = 40;
+function showModel(m){
+  if (!three) return;
+  if (three.mesh){ three.group.remove(three.mesh); three.mesh.geometry.dispose() }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+  g.computeVertexNormals(); g.computeBoundingBox();
+  const c = new THREE.Vector3(); g.boundingBox.getCenter(c); g.translate(-c.x, -c.y, -c.z);
+  // STL is Z-up; rotate to Y-up for the viewer
+  g.rotateX(-Math.PI/2);
+  g.computeBoundingSphere();
+  const radius = g.boundingSphere.radius || 1;
+  three.mat.wireframe = !!m.est; // оценка по описанию — показываем габаритный каркас
+  const mesh = new THREE.Mesh(g, three.mat);
+  mesh.scale.setScalar(FIT / radius);
+  three.group.add(mesh); three.mesh = mesh; three.auto = true;
+}
+function setModel(m, label){
+  model = m;
+  $('#modelTag').textContent = label;
+  $('#pVol').value = (m.vol/1000).toFixed(1);
+  updateStats(); showModel(m); calcPrint();
+}
+function updateStats(){
+  const v = num('#pVol') * 1000;
+  if (v <= 0){ ['#sVol', '#sArea', '#sBox', '#sTri'].forEach(id => $(id).textContent = '—'); return }
+  $('#sVol').textContent = nf1.format(v/1000) + ' см³';
+  if (model && Math.abs(model.vol - v) < 51){
+    $('#sArea').textContent = (model.est ? '≈ ' : '') + nf1.format(model.area/100) + ' см²';
+    $('#sBox').textContent = (model.est ? '≈ ' : '') + model.bbox.map(x => nf0.format(x)).join('×');
+    $('#sTri').textContent = model.est ? 'по описанию' : nf0.format(model.tris);
+  } else {
+    $('#sArea').textContent = '≈ ' + nf1.format(estArea(v)/100) + ' см²';
+    $('#sBox').textContent = '—'; $('#sTri').textContent = 'вручную';
+  }
+}
+const estArea = v => 4.84 * Math.pow(v, 2/3); // sphere of the same volume
+function sampleModel(){
+  if (window.THREE){
+    const g = new THREE.TorusKnotGeometry(16, 5.5, 180, 28).toNonIndexed();
+    g.rotateX(Math.PI/2);
+    return analyse(g.attributes.position.array.slice());
+  }
+  return null;
+}
+async function loadFile(f){
+  if (!f) return;
+  if (!/\.stl$/i.test(f.name)){ toast('Поддерживается только формат STL'); return }
+  try {
+    const pos = parseSTL(await f.arrayBuffer());
+    setModel(analyse(pos), f.name);
+    toast('Модель загружена: ' + f.name);
+  } catch(e){ toast('Не удалось прочитать файл: ' + e.message) }
+}
+$('#stlFile').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = '' });
+$('#pickStl').addEventListener('click', e => { e.stopPropagation(); $('#stlFile').click() });
+function clearModel(){
+  model = null;
+  if (three && three.mesh){ three.group.remove(three.mesh); three.mesh.geometry.dispose(); three.mesh = null }
+  $('#modelTag').textContent = 'Модели нет';
+  $('#pVol').value = '';
+  $('#pName').value = 'Деталь по модели заказчика';
+  $('#dSummary').hidden = true; $('#dOut').textContent = '';
+  updateStats(); calcPrint();
+}
+$('#clearStl').addEventListener('click', e => { e.stopPropagation(); clearModel(); toast('Модель убрана. Загрузите STL или сделайте пред‑расчёт по описанию') });
+const vw = $('#viewer');
+['dragenter','dragover'].forEach(t => vw.addEventListener(t, e => { e.preventDefault(); vw.classList.add('drag') }));
+['dragleave','drop'].forEach(t => vw.addEventListener(t, e => { e.preventDefault(); vw.classList.remove('drag') }));
+vw.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+
+/* ---------------- print calc ---------------- */
+let tech = 'FDM';
+seg('#techSeg', () => { tech = $('#techSeg button[aria-pressed="true"]').dataset.tech; fillMaterials(); calcPrint() });
+function fillMaterials(){
+  const sel = $('#pMat'); const prev = sel.value;
+  const list = st.materials.filter(m => m.tech === tech);
+  sel.innerHTML = list.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('');
+  if (list.some(m => m.id === prev)) sel.value = prev;
+  $$('.fdm-only').forEach(e => e.hidden = tech !== 'FDM');
+  $$('.no-sls').forEach(e => e.hidden = tech === 'SLS');
+}
+const COLORS = { mat:'#E9B865', energy:'#72D5C6', amort:'#9C8CF2', labor:'#E8A07A', cons:'#6E9BE0', risk:'#E88B8B', markup:'#8FD694', tax:'#8E90A2' };
+let lastPrint = null;
+
+function calcPrint(){
+  const s = st.settings, p = s.printers[tech];
+  const mat = st.materials.find(m => m.id === $('#pMat').value);
+  if (!mat){ $('#rLines').innerHTML = '<li><span></span><span class="nm">Добавьте материал для ' + tech + ' на вкладке «Материалы»</span></li>'; return }
+  $('#matInfo').innerHTML = `<span class="swatch" style="background:${esc(mat.color)}"></span>${nf2.format(mat.density)} г/см³ · ${money(mat.price)}/кг · отход ${mat.waste}% · брак ${mat.fail}%`;
+  if (three) three.mat.color.set(mat.color);
+
+  const qty = Math.max(1, Math.round(num('#pQty', 1)));
+  const V = num('#pVol') * 1000;
+  if (V <= 0){
+    // пустое состояние: без объёма цену не показываем, чтобы не вводить в заблуждение
+    lastPrint = null;
+    $('#rTotal').textContent = '—'; $('#rTotal')._v = 0; $('#rPer').textContent = '';
+    ['#kMass', '#kTime', '#kProfit'].forEach(id => $(id).textContent = '—');
+    $('#rBar').innerHTML = '';
+    $('#rLines').innerHTML = '<li><span></span><span class="nm">Загрузите STL, впишите объём модели или сделайте пред‑расчёт по описанию и фото.</span></li>';
+    $('#rNote').textContent = '';
+    return;
+  }
+  const useModel = model && Math.abs(model.vol - V) < 51;
+  const A = useModel ? model.area : estArea(V);
+  const H = useModel ? model.bbox[2] : Math.cbrt(V);
+  const infill = num('#pInfill') / 100, walls = num('#pWalls', 3), sup = tech === 'SLS' ? 0 : num('#pSupport') / 100;
+  $('#oInfill').textContent = Math.round(infill*100) + '%';
+  $('#oSupport').textContent = Math.round(sup*100) + '%';
+  const mk = num('#pMarkup') / 100; $('#oMarkup').textContent = Math.round(mk*100) + '%';
+
+  let eff, effFx;
+  if (tech === 'FDM'){
+    const shell = Math.min(V, A * walls * 0.45);
+    eff = (shell + (V - shell) * infill) * (1 + sup);
+    effFx = `оболочка ${nf1.format(shell/1000)} см³ + заполнение ${Math.round(infill*100)}% · поддержки +${Math.round(sup*100)}%`;
+  } else {
+    eff = V * (1 + sup);
+    effFx = tech === 'SLA' ? `сплошная деталь · поддержки +${Math.round(sup*100)}%` : 'сплошная деталь, без поддержек';
+  }
+  const mass = eff / 1000 * mat.density;               // g per unit
+  const matCost = mass / 1000 * mat.price * (1 + mat.waste/100) * qty;
+
+  let h, hFx;
+  const manual = num('#pTime');
+  if (manual > 0){ h = manual; hFx = 'время из слайсера' }
+  else if (tech === 'FDM'){ h = (eff / p.speed / 3600) * 1.3 * qty + 0.2; hFx = `${nf0.format(eff)} мм³ ÷ ${p.speed} мм³/с × 1,3 (холостые) × ${qty} + прогрев` }
+  else { const layers = Math.ceil(H / p.layer); h = layers * p.speed / 3600 + (tech === 'SLS' ? 1.5 : 0.25); hFx = `${nf0.format(layers)} слоёв × ${p.speed} с (вся партия за один запуск)` }
+
+  const energy = p.power * h * s.tariff;
+  const amortRate = p.price / p.life + p.maint;
+  const amort = amortRate * h;
+  const laborMin = num('#pPrep') + num('#pPost') * qty;
+  const labor = laborMin / 60 * s.operatorRate;
+  const cons = p.consum;
+  const base = matCost + energy + amort + labor + cons;
+  const risk = base * mat.fail / 100;
+  const cost = base + risk;
+  const markup = cost * mk;
+  const tax = (cost + markup) * s.tax / 100;
+  const total = cost + markup + tax;
+
+  const lines = [
+    { k:'mat', nm:'Материал', v:matCost, fx:`${nf1.format(mass)} г × ${money(mat.price)}/кг × (1 + ${mat.waste}% отход) × ${qty} шт · ${effFx}` },
+    { k:'energy', nm:'Электроэнергия', v:energy, fx:`${p.power} кВт × ${nf2.format(h)} ч × ${money2(s.tariff)}/кВт·ч` },
+    { k:'amort', nm:'Износ принтера', v:amort, fx:`(${money(p.price)} ÷ ${nf0.format(p.life)} ч + ${money(p.maint)}/ч) × ${nf2.format(h)} ч` },
+    { k:'labor', nm:'Работа оператора', v:labor, fx:`${nf0.format(laborMin)} мин × ${money(s.operatorRate)}/ч (подготовка + постобработка × ${qty})` },
+    { k:'cons', nm:'Расходники', v:cons, fx: tech === 'SLA' ? 'спирт, плёнка FEP, перчатки на заказ' : tech === 'SLS' ? 'просеивание, фильтры, азот' : 'нет' },
+    { k:'risk', nm:'Риск брака', v:risk, fx:`${mat.fail}% от суммы выше — перепечатка заложена честно, а не спрятана` },
+    { sum:true, nm:'Себестоимость', v:cost },
+    { k:'markup', nm:'Наценка мастерской', v:markup, fx:`${Math.round(mk*100)}% от себестоимости` },
+    { k:'tax', nm:'Налог', v:tax, fx:`${s.tax}% (настраивается)` },
+  ];
+  renderLines('#rLines', '#rBar', lines, total);
+  countTo($('#rTotal'), total);
+  $('#rPer').innerHTML = qty > 1 ? `${money(total/qty)} за шт<br>${qty} шт` : 'за 1 шт';
+  $('#kMass').textContent = nf1.format(mass * qty) + ' г';
+  $('#kTime').textContent = hrs(h);
+  $('#kProfit').textContent = money(markup);
+  $('#rNote').textContent = manual > 0 ? '' : 'Время — оценка по объёму. Для точности впишите время из слайсера.';
+  lastPrint = { total, qty, desc:`${tech} · ${mat.name} · ${nf1.format(mass)} г/шт · ${hrs(h)}`, lines };
+}
+function renderLines(listSel, barSel, lines, total){
+  const parts = lines.filter(l => !l.sum && l.v > 0.005);
+  $(barSel).innerHTML = parts.map(l => `<i title="${esc(l.nm)}" style="flex-grow:${l.v};background:${COLORS[l.k]}"></i>`).join('');
+  $(listSel).innerHTML = lines.map(l => l.sum
+    ? `<li class="sum"><span></span><span class="nm">${l.nm}</span><span class="v">${money(l.v)}</span></li>`
+    : `<li><span class="dot" style="background:${COLORS[l.k]}"></span><span class="nm">${l.nm}</span><span class="v">${money(l.v)}</span><span class="fx">${esc(l.fx)}</span></li>`).join('')
+    + `<li class="sum"><span></span><span class="nm">Итого</span><span class="v">${money(total)}</span></li>`;
+}
+function countTo(el, target){
+  const from = el._v || 0; el._v = target;
+  if (document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches){ el.textContent = money(target); return }
+  const t0 = performance.now(), d = 500;
+  cancelAnimationFrame(el._raf);
+  const step = t => { const k = Math.min(1, (t - t0) / d), e = 1 - Math.pow(1 - k, 3); el.textContent = money(from + (target - from) * e); if (k < 1) el._raf = requestAnimationFrame(step) };
+  el._raf = requestAnimationFrame(step);
+}
+['#pMat','#pInfill','#pWalls','#pSupport','#pQty','#pTime','#pPrep','#pPost','#pMarkup'].forEach(id => $(id).addEventListener('input', calcPrint));
+$('#pVol').addEventListener('input', () => { updateStats(); calcPrint() });
+
+/* ---------------- scan calc ---------------- */
+const getSize = seg('#sizeSeg', calcScan), getCx = seg('#cxSeg', calcScan), getAcc = seg('#accSeg', calcScan);
+let lastScan = null;
+function calcScan(){
+  const s = st.settings;
+  const size = getSize().dataset.v, cx = +getCx().dataset.v, acc = +getAcc().dataset.v;
+  const qty = Math.max(1, Math.round(num('#sQty', 1))), km = num('#sKm'), cad = num('#sCad');
+  const tex = $('#sTex').checked, spray = $('#sSpray').checked;
+  const mk = num('#sMarkup') / 100; $('#oSMarkup').textContent = Math.round(mk*100) + '%';
+  const scanMin = num('#sScanMin'), procMin = num('#sProcMin');
+  $('#sManualNote').hidden = !(scanMin > 0);
+  $$('#tab-scan .est-dep').forEach(el => el.classList.toggle('off', scanMin > 0));
+  const scanH = scanMin > 0 ? scanMin / 60 * qty : SCAN.hours[size] * cx * acc * (tex ? 1.25 : 1) * qty;
+  const scanFx = scanMin > 0
+    ? `${nf0.format(scanMin)} мин × ${qty} шт (задано вручную) · ${money(s.scanRate)}/ч`
+    : `${nf2.format(SCAN.hours[size])} ч × сложность ${nf1.format(cx)} × точность ${nf1.format(acc)}${tex?' × текстура 1,25':''} × ${qty} шт · ${money(s.scanRate)}/ч`;
+  const procH = procMin > 0 ? procMin / 60 * qty : scanH * s.procShare / 100;
+  const procFx = procMin > 0
+    ? `${nf0.format(procMin)} мин × ${qty} шт (задано вручную) · ${money(s.procRate)}/ч`
+    : `${nf2.format(procH)} ч (${s.procShare}% от времени съёмки): авто‑сшивка, проверка, экспорт · ${money(s.procRate)}/ч`;
+  const lines = [
+    { k:'energy', nm:'Съёмка', v:scanH * s.scanRate, fx:scanFx },
+    { k:'amort', nm:'Обработка сетки', v:procH * s.procRate, fx:procFx },
+    { k:'mat', nm:'Матирующий спрей', v:spray ? s.sprayCost * qty : 0, fx: spray ? `${money(s.sprayCost)} × ${qty} шт` : 'не нужен' },
+    { k:'labor', nm:'CAD‑модель', v:cad * s.cadRate, fx:`${nf1.format(cad)} ч × ${money(s.cadRate)}/ч` },
+    { k:'risk', nm:'Выезд', v:km * 2 * s.kmRate, fx:`${nf0.format(km)} км × 2 × ${money(s.kmRate)}/км` },
+  ];
+  const cost = lines.reduce((a, l) => a + l.v, 0);
+  const market = num('#sMarket'), below = num('#sBelow');
+  $('#oBelow').textContent = Math.round(below) + '%';
+  const minOrder = num('#sMinOrder');
+  let markup, tax, total, mkFx, lift = 0, raw;
+  if (market > 0){
+    // price is anchored to the market; margin is whatever is left after cost and tax
+    raw = market * (1 - below / 100);
+    // народный тариф: дешевле рынка, но не в убыток
+    const floor = st.settings.folk ? cost * (1 + s.tax / 100) : 0;
+    total = Math.max(raw, minOrder, floor); lift = total - raw;
+    tax = total - total / (1 + s.tax / 100);
+    markup = total - tax - cost;
+    mkFx = `цена = ${money(market)} у конкурентов − ${Math.round(below)}% · маржа ${cost > 0 ? Math.round(markup / cost * 100) : 0}% от себестоимости`;
+  } else {
+    markup = cost * mk; tax = (cost + markup) * s.tax / 100;
+    raw = cost + markup + tax;
+    lift = minOrder > raw ? minOrder - raw : 0;
+    total = raw + lift;
+    mkFx = `${Math.round(mk*100)}% от себестоимости`;
+  }
+  lines.push({ sum:true, nm:'Себестоимость', v:cost },
+             { k:'markup', nm: markup < 0 ? 'Убыток' : 'Наценка мастерской', v:markup, fx:mkFx },
+             { k:'tax', nm:'Налог', v:tax, fx:`${s.tax}%` });
+  if (lift > 0) lines.push(market > 0 && minOrder < total - 0.5
+    ? { k:'cons', nm:'Поднято до безубыточности', v:lift, fx:`${money(raw)} ниже себестоимости с налогом — народный тариф не работает в минус` }
+    : { k:'cons', nm:'Доплата до минимального заказа', v:lift, fx:`расчёт ${money(raw)} меньше минимума ${money(minOrder)}` });
+  $('#sMarkup').disabled = market > 0;
+  $('#scWarn').hidden = !(market > 0 && markup < 0);
+  $('#scWarn').textContent = `При цене ${money(total)} вы работаете в минус на ${money(-markup)}. Уменьшите скидку или пересмотрите ставки.`;
+  renderLines('#scLines', '#scBar', lines, total);
+  countTo($('#scTotal'), total);
+  $('#scPer').innerHTML = qty > 1 ? `${money(total/qty)} за объект<br>${qty} шт` : 'за 1 объект';
+  $('#scK1').textContent = hrs(scanH); $('#scK2').textContent = hrs(procH); $('#scK3').textContent = money(markup);
+  lastScan = { total, qty, desc:`${({S:'до 10 см',M:'10–30 см',L:'30–100 см',XL:'> 1 м'})[size]} · точность ${getAcc().textContent}${tex?' · текстура':''} · съёмка ${hrs(scanH)}, обработка ${hrs(procH)}${cad?` · CAD ${nf1.format(cad)} ч`:''}` };
+}
+['#sQty','#sKm','#sCad','#sMarkup','#sTex','#sSpray','#sScanMin','#sProcMin','#sMinOrder','#sMarket','#sBelow'].forEach(id => $(id).addEventListener('input', calcScan));
+$('#sAutoBtn').addEventListener('click', () => { $('#sScanMin').value = 0; $('#sProcMin').value = 0; calcScan(); toast('Время снова считается по размеру, поверхности и точности') });
+$('#scanPresets').addEventListener('click', e => {
+  const b = e.target.closest('[data-scan]'); if (!b) return;
+  $('#sScanMin').value = b.dataset.scan; $('#sProcMin').value = b.dataset.proc; calcScan();
+});
+
+/* ---------------- деталь по описанию ---------------- */
+const CATALOG = [
+  { re:/кронштейн/, name:'Кронштейн', box:[80,40,25], fill:.18, wall:3 },
+  { re:/клипс|пистон|фиксатор|защ[её]лк/, name:'Клипса', box:[20,12,12], fill:.25, wall:1.5 },
+  { re:/заглушк|пробк|колпач/, name:'Заглушка', box:[30,30,12], fill:.3, wall:2 },
+  { re:/накладк|рамк|реш[её]тк|молдинг/, name:'Накладка', box:[150,60,10], fill:.2, wall:2.5 },
+  { re:/корпус|коробк|бокс|кейс/, name:'Корпус', box:[100,60,40], fill:.12, wall:2 },
+  { re:/шест[её]р|зубчат/, name:'Шестерня', box:[40,40,10], fill:.6, wall:3 },
+  { re:/ручк|рукоят/, name:'Ручка', box:[100,30,25], fill:.3, wall:3 },
+  { re:/втулк|проставк|шайб|кольц/, name:'Втулка', box:[25,25,15], fill:.45, wall:3 },
+  { re:/крышк/, name:'Крышка', box:[80,80,15], fill:.2, wall:2 },
+  { re:/петл/, name:'Петля', box:[40,25,10], fill:.4, wall:2.5 },
+  // общие слова — в самом конце, чтобы «клипса крепления» осталась клипсой
+  { re:/крепл|держател|опор/, name:'Кронштейн', box:[80,40,25], fill:.18, wall:3 },
+];
+function offlineEstimate(text){
+  const t = text.toLowerCase();
+  const hit = CATALOG.find(c => c.re.test(t)) || { name:'Деталь', box:[50,30,20], fill:.25, wall:2.5 };
+  let box = hit.box.slice();
+  const m = t.match(/(\d+(?:[.,]\d+)?)\s*(?:мм)?\s*[x×х*]\s*(\d+(?:[.,]\d+)?)(?:\s*(?:мм)?\s*[x×х*]\s*(\d+(?:[.,]\d+)?))?/);
+  if (m){ const a = parseFloat(m[1].replace(',', '.')), b = parseFloat(m[2].replace(',', '.')); box = [a, b, m[3] ? parseFloat(m[3].replace(',', '.')) : Math.max(3, Math.min(a, b) / 3)] }
+  else if (/маленьк|мини|небольш/.test(t)) box = box.map(v => v * .6);
+  else if (/больш|крупн/.test(t)) box = box.map(v => v * 1.6);
+  const auto = /авто|машин|шкод|skoda|октави|octavia|противотуман|фар|бампер|двигат|капот|улиц|солнц/.test(t);
+  const material = /гибк|эласт|резин/.test(t) ? 'tpu' : auto ? 'asa' : /прочн|нагруз/.test(t) ? 'petg' : 'pla';
+  return { name:hit.name, bbox_mm:box, volume_cm3: box[0]*box[1]*box[2]*hit.fill/1000, wall_mm:hit.wall, material, tech:'FDM',
+    infill: auto ? 40 : 25, confidence:'низкая',
+    why: (m ? 'Размеры взяты из описания. ' : 'Типичные размеры для «' + hit.name.toLowerCase() + '» из справочника. ') + (auto ? 'Для авто выбран ASA: держит солнце и нагрев под капотом.' : ''),
+    ask:'Точные габариты в мм или фото рядом с линейкой', source:'offline' };
+}
+function estimatePrompt(text, withPhoto){
+  const mats = st.materials.map(m => `${m.id} — ${m.name} — ${m.tech}`).join('\n');
+  return `Ты технолог мастерской 3D‑печати. По описанию детали${withPhoto ? ' и фото' : ''} оцени её реальные габариты и объём пластика, чтобы посчитать стоимость печати и сканирования.
+Описание от клиента: """${text.slice(0, 2000)}"""
+Доступные материалы (id — название — технология):
+${mats}
+${withPhoto ? 'Если на фото есть линейка, монета или другой предмет известного размера, используй его для масштаба.\n' : ''}Ответь только JSON такого вида:
+{"name":"короткое название детали","bbox_mm":[длина,ширина,высота],"volume_cm3":объём материала самой детали (не габаритного параллелепипеда),"wall_mm":типичная толщина стенки,"material":"id из списка","tech":"FDM|SLA|SLS","infill":процент заполнения для FDM,"confidence":"низкая|средняя|высокая","why":"1–2 предложения: откуда размеры и почему этот материал","ask":"что коротко уточнить у клиента"}`;
+}
+let sampleFn = null;
+(async () => {
+  if (!window.claude || typeof window.claude.use !== 'function') return;
+  try { sampleFn = await window.claude.use('sample') } catch(e){ sampleFn = null }
+  if (!sampleFn) return;
+  const lim = await sampleFn.limits().catch(() => null);
+  claudeImages = !!(lim && lim.images);
+})();
+let claudeImages = false;
+
+/* ---------- линейка по фото ---------- */
+const M = { img:null, file:null, step:'ref', pts:{ ref:[], len:[], wid:[] } };
+const STEPS = ['ref', 'len', 'wid'];
+const STEP_HINT = {
+  ref: 'Шаг 1. Нажмите на два конца эталона: например, на отметки 0 и 100 мм линейки или на края карты или монеты.',
+  len: 'Шаг 2. Нажмите на два самых дальних конца детали по длине.',
+  wid: 'Шаг 3. Нажмите на два края детали поперёк, по ширине.',
+  done: 'Готово. Можно сделать пред‑расчёт. Чтобы переставить точку, выберите шаг вверху.'
+};
+const STEP_COLOR = { ref:'#72D5C6', len:'#E9B865', wid:'#9C8CF2' };
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function measured(){
+  const r = M.pts.ref, refMm = num('#mRefLen');
+  if (r.length < 2 || !refMm) return null;
+  const k = refMm / (dist(r[0], r[1]) || 1); // мм на пиксель
+  const L = M.pts.len.length === 2 ? dist(M.pts.len[0], M.pts.len[1]) * k : 0;
+  const W = M.pts.wid.length === 2 ? dist(M.pts.wid[0], M.pts.wid[1]) * k : 0;
+  return L ? { L, W, H: num('#mHeight') } : null;
+}
+function drawMeasure(){
+  const cv = $('#mCanvas'); if (!M.img) return;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(M.img, 0, 0, cv.width, cv.height);
+  const s = cv.width / 600; // толщина линий не зависит от размера фото
+  STEPS.forEach(stp => {
+    const p = M.pts[stp]; if (!p.length) return;
+    ctx.strokeStyle = ctx.fillStyle = STEP_COLOR[stp];
+    ctx.lineWidth = 2.5 * s;
+    if (p.length === 2){ ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y); ctx.lineTo(p[1].x, p[1].y); ctx.stroke() }
+    p.forEach(q => { ctx.beginPath(); ctx.arc(q.x, q.y, 6 * s, 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = 1.5 * s; ctx.strokeStyle = '#000'; ctx.stroke(); ctx.strokeStyle = STEP_COLOR[stp] });
+  });
+  // шаги и подсказка
+  const allDone = STEPS.every(stp => M.pts[stp].length === 2);
+  $$('.m-step').forEach(b => b.dataset.state = b.dataset.step === M.step && !allDone ? 'active' : M.pts[b.dataset.step].length === 2 ? 'done' : '');
+  $('#mHint').textContent = allDone ? STEP_HINT.done : STEP_HINT[M.step];
+  const m = measured();
+  $('#mResult').textContent = m ? `${nf0.format(m.L)}${m.W ? ' × ' + nf0.format(m.W) : ''}${m.H ? ' × ' + nf0.format(m.H) : ''} мм` : '—';
+}
+function nextStep(){ M.step = STEPS.find(stp => M.pts[stp].length < 2) || M.step }
+$('#dPhotoBtn').addEventListener('click', () => $('#dPhoto').click());
+$('#dPhoto').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (!/^image\//.test(f.type)){ toast('Нужна фотография: JPEG, PNG или WebP'); return }
+  const url = URL.createObjectURL(f), img = new Image();
+  img.onload = () => {
+    const cv = $('#mCanvas'), maxW = 1400, k = Math.min(1, maxW / img.naturalWidth);
+    cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+    M.img = img; M.file = f; M.pts = { ref:[], len:[], wid:[] }; M.step = 'ref';
+    $('#mBox').hidden = false; $('#dPhotoName').textContent = f.name;
+    drawMeasure();
+  };
+  img.onerror = () => toast('Не удалось открыть фото');
+  img.src = url;
+});
+$('#mCanvas').addEventListener('pointerdown', e => {
+  if (!M.img) return;
+  const cv = e.currentTarget, r = cv.getBoundingClientRect();
+  const p = { x:(e.clientX - r.left) * cv.width / r.width, y:(e.clientY - r.top) * cv.height / r.height };
+  const arr = M.pts[M.step];
+  if (arr.length >= 2) arr.length = 0; // повторный выбор шага — перемеряем
+  arr.push(p);
+  if (arr.length === 2) nextStep();
+  drawMeasure();
+});
+$$('.m-step').forEach(b => b.addEventListener('click', () => { M.step = b.dataset.step; M.pts[M.step] = []; drawMeasure() }));
+$('#mUndo').addEventListener('click', () => {
+  const last = [...STEPS].reverse().find(stp => M.pts[stp].length);
+  if (last){ M.pts[last].pop(); M.step = last; drawMeasure() }
+});
+$('#mReset').addEventListener('click', () => { M.pts = { ref:[], len:[], wid:[] }; M.step = 'ref'; drawMeasure() });
+$('#mRemove').addEventListener('click', () => { M.img = null; M.file = null; $('#mBox').hidden = true; $('#dPhoto').value = ''; $('#dPhotoName').textContent = '' });
+$('#mRef').addEventListener('change', e => { if (+e.target.value) $('#mRefLen').value = e.target.value; else $('#mRefLen').focus(); drawMeasure() });
+['#mRefLen', '#mHeight'].forEach(id => $(id).addEventListener('input', drawMeasure));
+function applyEstimate(est, prefix){
+  const n = v => { const x = parseFloat(v); return isFinite(x) && x > 0 ? x : 0 };
+  let box = (Array.isArray(est.bbox_mm) ? est.bbox_mm : []).map(n).filter(Boolean).slice(0, 3);
+  while (box.length < 3) box.push(box[0] ? box[0] / 3 : 20);
+  box = box.map(v => Math.min(2000, Math.max(1, v)));
+  const estBoxVol = box[0] * box[1] * box[2];
+  // доля материала в габарите: из оценки, иначе 25%
+  const fill = Math.min(1, (n(est.volume_cm3) * 1000 / estBoxVol) || .25);
+  // замер по фото важнее оценки: длину и ширину берём с фото, толщину — введённую или из оценки
+  const ms = measured();
+  if (ms){
+    const sorted = box.slice().sort((a, b) => b - a);
+    box = [ms.L, ms.W || sorted[1] * ms.L / sorted[0], ms.H || sorted[2] * ms.L / sorted[0]].map(v => Math.min(2000, Math.max(1, v)));
+  }
+  const boxVol = box[0] * box[1] * box[2];
+  const V = Math.min(boxVol, Math.max(100, boxVol * fill));
+  const wall = n(est.wall_mm) || 2.5;
+  // tech + material
+  const t = ['FDM','SLA','SLS'].includes(est.tech) ? est.tech : 'FDM';
+  const tb = $(`#techSeg button[data-tech="${t}"]`);
+  if (tb && t !== tech){ tb.click() }
+  if (st.materials.some(m => m.id === est.material && m.tech === tech)) $('#pMat').value = est.material;
+  if (tech === 'FDM' && n(est.infill)) $('#pInfill').value = Math.round(Math.min(100, n(est.infill)) / 5) * 5;
+  // габаритный каркас для просмотра
+  let positions = new Float32Array(0);
+  if (window.THREE){ positions = new THREE.BoxGeometry(box[0], box[1], box[2]).toNonIndexed().attributes.position.array.slice() }
+  const name = String(est.name || 'Деталь').slice(0, 80);
+  setModel({ vol:V, area:Math.max(estArea(V), 2 * V / wall), bbox:box, tris:0, positions, est:true }, 'По описанию · ' + name);
+  $('#pName').value = name;
+  // размер для сканирования
+  const maxd = Math.max(...box), cls = maxd < 100 ? 'S' : maxd < 300 ? 'M' : maxd < 1000 ? 'L' : 'XL';
+  $(`#sizeSeg button[data-v="${cls}"]`).click();
+  $('#sName').value = '3D‑сканирование: ' + name.toLowerCase();
+  const mat = st.materials.find(m => m.id === $('#pMat').value);
+  $('#dOut').textContent = (prefix ? prefix + ' ' : '') + (ms ? 'Размеры сняты с фото. ' : '') +
+    `${name}: ≈ ${box.map(v => nf0.format(v)).join('×')} мм, ≈ ${nf1.format(V / 1000)} см³ пластика, ${mat ? mat.name : ''}. ` +
+    `Уверенность: ${ms ? 'по размерам — выше, по объёму — ' : ''}${est.confidence || '—'}. ${est.why || ''}${est.ask ? ' Уточнить: ' + est.ask + '.' : ''}`;
+  if (ms && est.source === 'offline'){
+    $('#dOut').textContent = (prefix ? prefix + ' ' : '') +
+      `Размеры сняты с фото: ≈ ${box.map(v => nf0.format(v)).join('×')} мм. Объём пластика ≈ ${nf1.format(V / 1000)} см³ — по типичной форме «${name.toLowerCase()}»${ms.H ? '' : ', толщина оценена'}. Материал: ${mat ? mat.name : '—'}.` +
+      (ms.H ? '' : ' Впишите толщину детали — расчёт станет точнее.');
+  }
+  showPre(name);
+}
+function showPre(name){
+  if (!lastPrint || !lastScan) return;
+  $('#dSummary').hidden = false;
+  $('#dSumPrint').textContent = money(lastPrint.total);
+  $('#dSumPrintSub').textContent = lastPrint.desc;
+  $('#dSumScan').textContent = money(lastScan.total);
+  $('#dSumScanSub').textContent = lastScan.desc;
+  $('#dSummary').dataset.name = name;
+}
+$('#dAddPrint').addEventListener('click', () => lastPrint && addItem('Предварительно: ' + ($('#pName').value || 'печать детали'), lastPrint.desc, lastPrint.qty, lastPrint.total));
+$('#dAddScan').addEventListener('click', () => lastScan && addItem('Предварительно: ' + ($('#sName').value || '3D‑сканирование'), lastScan.desc, lastScan.qty, lastScan.total));
+let dCtl = null;
+$('#dGo').addEventListener('click', async () => {
+  const ms = measured();
+  const text = $('#dText').value.trim() || (ms ? 'Деталь' : '');
+  if (!text){ toast('Опишите деталь или сфотографируйте её с эталоном'); $('#dText').focus(); return }
+  if (M.img && !ms) toast('Фото не размечено — размеры возьмём из описания');
+  if (!sampleFn){ applyEstimate(offlineEstimate(text), 'Оценка по справочнику.'); return }
+  const photo = claudeImages && M.file ? M.file : null;
+  const promptText = ms ? `${text}\nИзмерено по фото с эталоном: длина ${Math.round(ms.L)} мм${ms.W ? ', ширина ' + Math.round(ms.W) + ' мм' : ''}${ms.H ? ', толщина ' + Math.round(ms.H) + ' мм' : ''}. Используй эти размеры.` : text;
+  dCtl = new AbortController();
+  $('#dGo').disabled = true; $('#dStop').hidden = false;
+  $('#dOut').textContent = 'Claude оценивает деталь…';
+  try {
+    const opts = { signal: dCtl.signal };
+    if (photo) opts.images = [photo];
+    const est = await sampleFn.json(estimatePrompt(promptText, !!photo), opts);
+    applyEstimate(est || {}, 'Оценка Claude.');
+  } catch(e){
+    const code = e && e.code;
+    if (code === 'cancelled') $('#dOut').textContent = '';
+    else if (code === 'image_rejected') $('#dOut').textContent = 'Фото не подошло: нужен JPEG, PNG или WebP до 20 МБ.';
+    else if (code === 'rate_limited') $('#dOut').textContent = 'Слишком много запросов подряд. Попробуйте через минуту.';
+    else {
+      if (['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(code)) sampleFn = null;
+      if (code === 'images_unavailable') claudeImages = false;
+      applyEstimate(offlineEstimate(text), 'Claude сейчас недоступен — оценка по справочнику.');
+    }
+  } finally { $('#dGo').disabled = false; $('#dStop').hidden = true }
+});
+$('#dStop').addEventListener('click', () => dCtl && dCtl.abort());
+
+/* ---------------- народный тариф ---------------- */
+const FOLK = { on:{ sMarkup:10, sBelow:20, sMinOrder:0 }, off:{ sMarkup:25, sBelow:10 } };
+function applyFolk(on, silent){
+  st.settings.folk = on; save();
+  $('#folk').setAttribute('aria-pressed', String(on));
+  Object.entries(on ? FOLK.on : FOLK.off).forEach(([id, v]) => { $('#' + id).value = v });
+  $$('.price-lbl').forEach(el => el.innerHTML = on ? 'Цена для клиента<span class="folk-badge">народная</span>' : 'Цена для клиента');
+  calcPrint(); calcScan(); renderPaper();
+  if (!silent) toast(on ? 'Народный тариф на скан: наценка 10%, ниже рынка на 20%' : 'Обычный тариф');
+}
+$('#folk').addEventListener('click', () => applyFolk(!st.settings.folk));
+
+/* ---------------- receipt ---------------- */
+function addItem(name, desc, qty, total){
+  st.items.push({ name, desc, qty, price: Math.round(total / qty * 100) / 100 });
+  save(); renderReceipt(); toast('Добавлено в квитанцию');
+}
+$('#addPrint').addEventListener('click', () => lastPrint && addItem($('#pName').value || '3D‑печать', lastPrint.desc, lastPrint.qty, lastPrint.total));
+$('#addScan').addEventListener('click', () => lastScan && addItem($('#sName').value || '3D‑сканирование', lastScan.desc, lastScan.qty, lastScan.total));
+$('#addCustom').addEventListener('click', () => { st.items.push({ name:'Доставка', desc:'', qty:1, price:500 }); save(); renderReceipt() });
+$('#copyPrint').addEventListener('click', () => {
+  if (!lastPrint) return;
+  const t = lastPrint.lines.map(l => `${l.nm}: ${money(l.v)}${l.fx ? '  (' + l.fx + ')' : ''}`).join('\n') + `\nИтого: ${money(lastPrint.total)}`;
+  copy(t);
+});
+
+const receiptNo = () => `3D-${new Date().getFullYear()}-${String(st.settings.nextNo).padStart(4,'0')}`;
+const receiptTotal = () => st.items.reduce((a, i) => a + i.qty * i.price, 0);
+
+function renderReceipt(){
+  const b = $('#badge'); b.textContent = st.items.length; b.dataset.zero = String(!st.items.length);
+  $('#issued').textContent = st.issued;
+  const ed = $('#itemsEd');
+  ed.innerHTML = st.items.length ? st.items.map((it, i) => `
+    <div class="item-ed">
+      <input type="text" id="itn${i}" data-i="${i}" data-f="name" value="${esc(it.name)}" aria-label="Название">
+      <input type="number" id="itq${i}" data-i="${i}" data-f="qty" min="1" step="1" value="${it.qty}" aria-label="Количество">
+      <input type="number" id="itp${i}" data-i="${i}" data-f="price" min="0" step="1" value="${it.price}" aria-label="Цена за шт">
+      <button class="icon-btn" type="button" data-del="${i}" aria-label="Удалить позицию">✕</button>
+    </div>`).join('') : '<div class="empty">Пока пусто. Нажмите «В квитанцию» в калькуляторе печати или сканирования.</div>';
+  renderPaper();
+}
+$('#itemsEd').addEventListener('input', e => {
+  const t = e.target; if (!t.dataset.f) return;
+  const it = st.items[+t.dataset.i];
+  it[t.dataset.f] = t.dataset.f === 'name' ? t.value : Math.max(0, parseFloat(t.value) || 0);
+  save(); renderPaper();
+});
+$('#itemsEd').addEventListener('click', e => {
+  const d = e.target.closest('[data-del]'); if (!d) return;
+  st.items.splice(+d.dataset.del, 1); save(); renderReceipt();
+});
+['cName','cEmail','cPhone','cNote'].forEach(id => {
+  const k = { cName:'name', cEmail:'email', cPhone:'phone', cNote:'note' }[id];
+  $('#' + id).value = st.client[k] || '';
+  $('#' + id).addEventListener('input', e => { st.client[k] = e.target.value; save(); renderPaper() });
+});
+function renderPaper(){
+  const s = st.settings, c = st.client, total = receiptTotal();
+  const date = new Date().toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
+  $('#paper').innerHTML = `
+    <div class="stamp">МЕРКУРИЙ<br>3D</div>
+    <h3>Квитанция № ${receiptNo()}</h3>
+    <div style="color:var(--ink-2);font-size:12px;margin-top:4px">${esc(s.company)}${s.companyInn ? ' · ИНН ' + esc(s.companyInn) : ''}</div>
+    <div class="meta">
+      <div>Дата<br><b>${date}</b></div>
+      <div>Заказчик<br><b>${esc(c.name || '—')}</b>${c.email ? '<br>' + esc(c.email) : ''}${c.phone ? '<br>' + esc(c.phone) : ''}</div>
+    </div>
+    ${st.items.length ? `<table>
+      <thead><tr><th>Услуга</th><th style="text-align:right">Кол.</th><th style="text-align:right">Цена</th><th style="text-align:right">Сумма</th></tr></thead>
+      <tbody>${st.items.map(i => `<tr><td>${esc(i.name)}${i.desc ? `<small>${esc(i.desc)}</small>` : ''}</td><td class="num">${i.qty}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`).join('')}</tbody>
+    </table>` : '<p style="color:var(--ink-2)">Нет позиций.</p>'}
+    <div class="tot"><span>Итого к оплате</span><b>${money(total)}</b></div>
+    <div class="foot">${c.note ? esc(c.note) + '<br>' : ''}${s.tax ? `В том числе налог ${s.tax}%. ` : ''}${s.folk ? 'Применён народный тариф. ' : ''}Расчёт включает материал, электроэнергию, износ оборудования, работу и риск брака.${s.companyPhone || s.companyEmail ? '<br>Связь: ' + esc([s.companyPhone, s.companyEmail].filter(Boolean).join(' · ')) : ''}</div>`;
+}
+function plainReceipt(){
+  const s = st.settings, c = st.client;
+  const L = [`Квитанция № ${receiptNo()} от ${new Date().toLocaleDateString('ru-RU')}`, s.company, '', `Заказчик: ${c.name || '—'}`, ''];
+  st.items.forEach((i, n) => L.push(`${n+1}. ${i.name}${i.desc ? ' (' + i.desc + ')' : ''}\n   ${i.qty} × ${money(i.price)} = ${money(i.qty * i.price)}`));
+  L.push('', `ИТОГО К ОПЛАТЕ: ${money(receiptTotal())}`);
+  if (c.note) L.push('', c.note);
+  if (s.companyPhone || s.companyEmail) L.push('', 'Связь: ' + [s.companyPhone, s.companyEmail].filter(Boolean).join(', '));
+  return L.join('\n').replace(/ /g, ' ');
+}
+function copy(text){
+  const done = () => toast('Скопировано');
+  const fallback = () => { const ta = $('#plainOut'); ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast('Выделено — нажмите Ctrl+C') };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+}
+$('#btnCopy').addEventListener('click', () => copy(plainReceipt()));
+$('#btnMail').addEventListener('click', () => {
+  if (!st.items.length){ toast('Добавьте хотя бы одну позицию'); return }
+  const to = st.client.email.trim();
+  if (!to){ toast('Укажите e‑mail клиента'); $('#cEmail').focus(); return }
+  const href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent('Квитанция № ' + receiptNo() + ' — ' + st.settings.company)}&body=${encodeURIComponent(plainReceipt())}`;
+  location.href = href;
+  toast('Открываем почтовую программу…');
+});
+$('#btnPrint').addEventListener('click', () => window.print());
+$('#btnIssue').addEventListener('click', () => {
+  if (!st.items.length){ toast('Квитанция пустая'); return }
+  st.settings.nextNo++; st.issued++; st.items = []; save(); renderReceipt(); toast('Квитанция закрыта. Номер следующей: ' + receiptNo());
+});
+if (framed){
+  $('#btnMail').hidden = true; $('#btnPrint').hidden = true;
+  $('#sendNote').textContent = 'В режиме предпросмотра отправка и PDF недоступны — скопируйте текст. В установленной версии кнопки «Отправить по почте» и «PDF» работают.';
+}
+
+/* ---------------- materials editor ---------------- */
+function renderMaterials(){
+  $('#matBody').innerHTML = st.materials.map((m, i) => `<tr>
+    <td><input type="color" id="mc${i}" data-i="${i}" data-f="color" value="${esc(m.color)}" aria-label="Цвет" style="width:36px;height:30px;border:0;background:none;padding:0"></td>
+    <td><input type="text" id="mn${i}" data-i="${i}" data-f="name" value="${esc(m.name)}" aria-label="Название"></td>
+    <td><select id="mt${i}" data-i="${i}" data-f="tech" aria-label="Технология">${['FDM','SLA','SLS'].map(t => `<option${t===m.tech?' selected':''}>${t}</option>`).join('')}</select></td>
+    <td><input type="number" id="md${i}" data-i="${i}" data-f="density" step="0.01" min="0.5" value="${m.density}" aria-label="Плотность"></td>
+    <td><input type="number" id="mp${i}" data-i="${i}" data-f="price" step="50" min="0" value="${m.price}" aria-label="Цена за кг"></td>
+    <td><input type="number" id="mw${i}" data-i="${i}" data-f="waste" step="1" min="0" value="${m.waste}" aria-label="Отход"></td>
+    <td><input type="number" id="mf${i}" data-i="${i}" data-f="fail" step="1" min="0" value="${m.fail}" aria-label="Брак"></td>
+    <td><button class="icon-btn" type="button" data-del="${i}" aria-label="Удалить материал">✕</button></td></tr>`).join('');
+}
+$('#matBody').addEventListener('input', e => {
+  const t = e.target, f = t.dataset.f; if (!f) return;
+  const m = st.materials[+t.dataset.i];
+  m[f] = (f === 'name' || f === 'tech' || f === 'color') ? t.value : (parseFloat(t.value) || 0);
+  save(); if (f === 'name' || f === 'tech') fillMaterials(); calcPrint();
+});
+$('#matBody').addEventListener('click', e => {
+  const d = e.target.closest('[data-del]'); if (!d) return;
+  st.materials.splice(+d.dataset.del, 1); save(); renderMaterials(); fillMaterials(); calcPrint();
+});
+$('#addMat').addEventListener('click', () => { st.materials.push({ id:'m' + Date.now(), name:'Новый материал', tech, density:1.2, price:2000, waste:5, fail:5, color:'#9C8CF2' }); save(); renderMaterials(); fillMaterials() });
+$('#resetMat').addEventListener('click', () => { st.materials = structuredClone(DEFAULT_MATERIALS); save(); renderMaterials(); fillMaterials(); calcPrint(); toast('Материалы сброшены к образцам') });
+
+/* ---------------- settings ---------------- */
+function field(container, key, label, type='number', step='any'){
+  const id = 'set_' + key;
+  container.insertAdjacentHTML('beforeend', `<div class="f"><label for="${id}">${label}</label><input type="${type}" id="${id}" step="${step}" value="${esc(st.settings[key])}"></div>`);
+  $('#' + id).addEventListener('input', e => {
+    st.settings[key] = type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value;
+    save(); calcPrint(); calcScan(); renderPaper();
+  });
+}
+function renderSettings(){
+  const c = $('#setCompany'); c.innerHTML = '';
+  field(c, 'company', 'Название', 'text'); field(c, 'companyInn', 'ИНН', 'text');
+  field(c, 'companyPhone', 'Телефон', 'text'); field(c, 'companyEmail', 'E‑mail', 'text');
+  field(c, 'currency', 'Валюта (символ)', 'text');
+  const r = $('#setRates'); r.innerHTML = '';
+  field(r, 'tariff', 'Электроэнергия, за кВт·ч'); field(r, 'operatorRate', 'Оператор печати, в час');
+  field(r, 'scanRate', 'Сканирование, в час'); field(r, 'procRate', 'Обработка сетки, в час'); field(r, 'procShare', 'Обработка, % от времени съёмки');
+  field(r, 'cadRate', 'CAD‑моделирование, в час'); field(r, 'sprayCost', 'Матирующий спрей, на объект');
+  field(r, 'kmRate', 'Выезд, за км'); field(r, 'tax', 'Налог, %');
+  const keys = ['price','life','maint','power','consum','speed'];
+  $('#prnBody').innerHTML = Object.entries(st.settings.printers).map(([t, p]) => `<tr><td><b>${t}</b>${t!=='FDM'?`<br><small style="color:var(--muted)">слой ${p.layer} мм</small>`:''}</td>${keys.map(k => `<td><input type="number" id="pr_${t}_${k}" data-t="${t}" data-k="${k}" step="any" value="${p[k]}" aria-label="${t} ${k}"></td>`).join('')}</tr>`).join('');
+}
+$('#prnBody').addEventListener('input', e => {
+  const t = e.target; if (!t.dataset.k) return;
+  st.settings.printers[t.dataset.t][t.dataset.k] = parseFloat(t.value) || 0; save(); calcPrint();
+});
+
+/* ---------------- boot ---------------- */
+initViewer();
+fillMaterials();
+renderMaterials(); renderSettings();
+const sm = sampleModel();
+if (sm) setModel(sm, 'Образец · узел‑тор, PLA'); else { $('#pVol').value = '24.0'; updateStats(); calcPrint() }
+calcScan();
+renderReceipt();
+if (st.settings.folk) applyFolk(true, true);
+let startTab = 'print'; try { startTab = localStorage.getItem(KEY + '.tab') || 'print' } catch(e){}
+if (location.hash && $('#tab-' + location.hash.slice(1))) startTab = location.hash.slice(1);
+showTab(startTab);
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script></body>
+</html>

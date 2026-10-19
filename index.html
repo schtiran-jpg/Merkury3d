@@ -111,6 +111,16 @@ h2{font-family:var(--display);font-weight:700;font-size:15px;margin:0 0 12px;let
 .stat{padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.2);border:1px solid var(--line);min-width:0}
 .stat span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .stat b{font-family:var(--mono);font-weight:500;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.parts{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.parts-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.parts-sum{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.parts-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.part{display:grid;grid-template-columns:minmax(0,1fr) 64px 32px;gap:8px;align-items:center;padding:6px 6px 6px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.18);transition:border-color .2s,background .2s}
+.part[aria-current="true"]{border-color:rgba(233,184,101,.55);background:rgba(233,184,101,.08)}
+.part-pick{border:0;background:none;text-align:left;cursor:pointer;min-width:0;padding:2px 0;color:var(--fg)}
+.part-pick b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.part-pick small{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.part input{padding:6px 8px;text-align:center}
 
 /* form */
 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
@@ -301,14 +311,22 @@ textarea.mono{font-family:var(--mono);font-size:12px;min-height:140px;resize:ver
           <div class="card">
             <div class="viewer" id="viewer">
               <span class="tag" id="modelTag">Образец · узел‑тор</span>
-              <div class="hint"><span>Перетащите <b>.stl</b> сюда или</span><span class="row" style="gap:6px;pointer-events:auto"><button class="btn small ghost" type="button" id="clearStl">Убрать модель</button><button class="btn small" type="button" id="pickStl">Выбрать файл</button></span></div>
-              <input type="file" id="stlFile" accept=".stl,model/stl,application/sla,application/octet-stream" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1" aria-hidden="true">
+              <div class="hint"><span>Перетащите один или несколько <b>.stl</b> сюда или</span><span class="row" style="gap:6px;pointer-events:auto"><button class="btn small ghost" type="button" id="clearStl">Убрать модель</button><button class="btn small" type="button" id="pickStl">Выбрать файлы</button></span></div>
+              <input type="file" id="stlFile" multiple accept=".stl,model/stl,application/sla,application/octet-stream" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1" aria-hidden="true">
             </div>
             <div class="stats">
               <div class="stat"><span>Объём</span><b id="sVol">—</b></div>
               <div class="stat"><span>Площадь</span><b id="sArea">—</b></div>
               <div class="stat"><span>Габариты, мм</span><b id="sBox">—</b></div>
               <div class="stat"><span>Треугольники</span><b id="sTri">—</b></div>
+            </div>
+            <div class="parts" id="partsBox" hidden>
+              <div class="parts-head">
+                <b>Детали в заказе</b>
+                <span class="parts-sum" id="partsSum"></span>
+              </div>
+              <ul class="parts-list" id="partsList"></ul>
+              <p class="note" style="margin:8px 0 0">Нажмите на деталь, чтобы посмотреть её и поправить объём. Материал и настройки печати общие для всего заказа.</p>
             </div>
           </div>
 
@@ -418,7 +436,7 @@ textarea.mono{font-family:var(--mono);font-size:12px;min-height:140px;resize:ver
                 <input type="range" id="pSupport" min="0" max="60" step="5" value="10">
               </div>
               <div class="f">
-                <label for="pQty">Количество, шт</label>
+                <label for="pQty" id="pQtyLabel">Количество, шт</label>
                 <input type="number" id="pQty" min="1" step="1" value="1">
               </div>
             </div>
@@ -893,12 +911,70 @@ function showModel(m){
   mesh.scale.setScalar(FIT / radius);
   three.group.add(mesh); three.mesh = mesh; three.auto = true;
 }
-function setModel(m, label){
-  model = m;
-  $('#modelTag').textContent = label;
-  $('#pVol').value = (m.vol/1000).toFixed(1);
-  updateStats(); showModel(m); calcPrint();
+/* ---------- детали заказа ---------- */
+// part: { name, m (сетка или оценка, может быть null), vol мм³ (можно поправить вручную), qty, sample }
+let parts = [], sel = 0;
+const baseName = f => f.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim() || 'Деталь';
+function selectPart(i){
+  sel = Math.max(0, Math.min(i, parts.length - 1));
+  const pt = parts[sel];
+  model = pt ? pt.m : null;
+  if (pt){
+    $('#modelTag').textContent = pt.label || pt.name;
+    $('#pVol').value = (pt.vol / 1000).toFixed(1);
+    $('#pQty').value = pt.qty;
+    if (pt.m && pt.m.positions && pt.m.positions.length) showModel(pt.m);
+    else if (three && three.mesh){ three.group.remove(three.mesh); three.mesh.geometry.dispose(); three.mesh = null }
+  }
+  updateStats(); renderParts(); calcPrint();
 }
+// заменить весь заказ одной деталью (образец, оценка по описанию)
+function setModel(m, label, opts = {}){
+  parts = [{ name: opts.name || label, label, m, vol: m.vol, qty: Math.max(1, Math.round(num('#pQty', 1))), sample: !!opts.sample }];
+  selectPart(0);
+}
+function addPart(m, fileName){
+  if (parts.length === 1 && parts[0].sample) parts = []; // первый настоящий файл убирает образец
+  parts.push({ name: baseName(fileName), label: fileName, m, vol: m.vol, qty: 1 });
+  if (parts.length === 1) $('#pName').value = baseName(fileName);
+  selectPart(parts.length - 1);
+}
+function renderParts(){
+  const real = parts.filter(p => !p.sample);
+  $('#partsBox').hidden = !real.length;
+  $('#pQtyLabel').textContent = parts.length > 1 ? 'Количество выбранной детали, шт' : 'Количество, шт';
+  $('#clearStl').textContent = parts.length > 1 ? 'Убрать все' : 'Убрать модель';
+  if (!real.length) return;
+  const units = parts.reduce((a, p) => a + p.qty, 0);
+  const vol = parts.reduce((a, p) => a + p.vol * p.qty, 0);
+  $('#partsSum').textContent = `${parts.length} ${plural(parts.length, 'модель', 'модели', 'моделей')} · ${units} шт · ${nf1.format(vol / 1000)} см³`;
+  $('#partsList').innerHTML = parts.map((p, i) => `
+    <li class="part" aria-current="${i === sel}">
+      <button class="part-pick" type="button" data-pick="${i}"><b>${esc(p.name)}</b><small>${nf1.format(p.vol / 1000)} см³${p.m && p.m.bbox ? ' · ' + (p.m.est ? '≈ ' : '') + p.m.bbox.map(x => nf0.format(x)).join('×') + ' мм' : ''}</small></button>
+      <input type="number" min="1" step="1" value="${p.qty}" data-qty="${i}" aria-label="Количество: ${esc(p.name)}">
+      <button class="icon-btn" type="button" data-rm="${i}" aria-label="Убрать ${esc(p.name)}">✕</button>
+    </li>`).join('');
+}
+function plural(n, one, few, many){ const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many }
+$('#partsList').addEventListener('click', e => {
+  const pick = e.target.closest('[data-pick]'), rm = e.target.closest('[data-rm]');
+  if (pick) selectPart(+pick.dataset.pick);
+  if (rm){
+    const i = +rm.dataset.rm;
+    parts.splice(i, 1);
+    if (!parts.length){ clearModel(); return }
+    selectPart(i < sel ? sel - 1 : Math.min(sel, parts.length - 1)); // выделение остаётся на той же детали
+  }
+});
+$('#partsList').addEventListener('input', e => {
+  const q = e.target.dataset.qty; if (q === undefined) return;
+  parts[+q].qty = Math.max(1, Math.round(parseFloat(e.target.value) || 1));
+  if (+q === sel) $('#pQty').value = parts[+q].qty;
+  const sum = $('#partsSum'); // обновляем сводку без перерисовки поля, в котором печатают
+  const units = parts.reduce((a, p) => a + p.qty, 0), vol = parts.reduce((a, p) => a + p.vol * p.qty, 0);
+  sum.textContent = `${parts.length} ${plural(parts.length, 'модель', 'модели', 'моделей')} · ${units} шт · ${nf1.format(vol / 1000)} см³`;
+  calcPrint();
+});
 function updateStats(){
   const v = num('#pVol') * 1000;
   if (v <= 0){ ['#sVol', '#sArea', '#sBox', '#sTri'].forEach(id => $(id).textContent = '—'); return }
@@ -921,19 +997,22 @@ function sampleModel(){
   }
   return null;
 }
-async function loadFile(f){
-  if (!f) return;
-  if (!/\.stl$/i.test(f.name)){ toast('Поддерживается только формат STL'); return }
-  try {
-    const pos = parseSTL(await f.arrayBuffer());
-    setModel(analyse(pos), f.name);
-    toast('Модель загружена: ' + f.name);
-  } catch(e){ toast('Не удалось прочитать файл: ' + e.message) }
+async function loadFiles(list){
+  const files = [...(list || [])];
+  if (!files.length) return;
+  let ok = 0; const bad = [];
+  for (const f of files){
+    if (!/\.stl$/i.test(f.name)){ bad.push(f.name + ' — не STL'); continue }
+    try { addPart(analyse(parseSTL(await f.arrayBuffer())), f.name); ok++ }
+    catch(e){ bad.push(f.name + ' — ' + e.message) }
+  }
+  if (ok) toast(ok === 1 ? 'Модель загружена' : `Загружено моделей: ${ok}`);
+  if (bad.length) setTimeout(() => toast('Не удалось открыть: ' + bad.join('; ')), ok ? 2500 : 0);
 }
-$('#stlFile').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = '' });
+$('#stlFile').addEventListener('change', e => { loadFiles(e.target.files); e.target.value = '' });
 $('#pickStl').addEventListener('click', e => { e.stopPropagation(); $('#stlFile').click() });
 function clearModel(){
-  model = null;
+  model = null; parts = []; sel = 0; renderParts();
   if (three && three.mesh){ three.group.remove(three.mesh); three.mesh.geometry.dispose(); three.mesh = null }
   $('#modelTag').textContent = 'Модели нет';
   $('#pVol').value = '';
@@ -945,7 +1024,7 @@ $('#clearStl').addEventListener('click', e => { e.stopPropagation(); clearModel(
 const vw = $('#viewer');
 ['dragenter','dragover'].forEach(t => vw.addEventListener(t, e => { e.preventDefault(); vw.classList.add('drag') }));
 ['dragleave','drop'].forEach(t => vw.addEventListener(t, e => { e.preventDefault(); vw.classList.remove('drag') }));
-vw.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+vw.addEventListener('drop', e => loadFiles(e.dataTransfer.files));
 
 /* ---------------- print calc ---------------- */
 let tech = 'FDM';
@@ -968,9 +1047,8 @@ function calcPrint(){
   $('#matInfo').innerHTML = `<span class="swatch" style="background:${esc(mat.color)}"></span>${nf2.format(mat.density)} г/см³ · ${money(mat.price)}/кг · отход ${mat.waste}% · брак ${mat.fail}%`;
   if (three) three.mat.color.set(mat.color);
 
-  const qty = Math.max(1, Math.round(num('#pQty', 1)));
-  const V = num('#pVol') * 1000;
-  if (V <= 0){
+  const items = parts.filter(pt => pt.vol > 0);
+  if (!items.length){
     // пустое состояние: без объёма цену не показываем, чтобы не вводить в заблуждение
     lastPrint = null;
     $('#rTotal').textContent = '—'; $('#rTotal')._v = 0; $('#rPer').textContent = '';
@@ -980,36 +1058,43 @@ function calcPrint(){
     $('#rNote').textContent = '';
     return;
   }
-  const useModel = model && Math.abs(model.vol - V) < 51;
-  const A = useModel ? model.area : estArea(V);
-  const H = useModel ? model.bbox[2] : Math.cbrt(V);
   const infill = num('#pInfill') / 100, walls = num('#pWalls', 3), sup = tech === 'SLS' ? 0 : num('#pSupport') / 100;
   $('#oInfill').textContent = Math.round(infill*100) + '%';
   $('#oSupport').textContent = Math.round(sup*100) + '%';
   const mk = num('#pMarkup') / 100; $('#oMarkup').textContent = Math.round(mk*100) + '%';
 
-  let eff, effFx;
-  if (tech === 'FDM'){
-    const shell = Math.min(V, A * walls * 0.45);
-    eff = (shell + (V - shell) * infill) * (1 + sup);
-    effFx = `оболочка ${nf1.format(shell/1000)} см³ + заполнение ${Math.round(infill*100)}% · поддержки +${Math.round(sup*100)}%`;
-  } else {
-    eff = V * (1 + sup);
-    effFx = tech === 'SLA' ? `сплошная деталь · поддержки +${Math.round(sup*100)}%` : 'сплошная деталь, без поддержек';
-  }
-  const mass = eff / 1000 * mat.density;               // g per unit
-  const matCost = mass / 1000 * mat.price * (1 + mat.waste/100) * qty;
+  // каждая деталь: сколько пластика уходит на одну штуку
+  const calc = items.map(pt => {
+    const V = pt.vol, fromMesh = pt.m && Math.abs(pt.m.vol - V) < 51;
+    const A = fromMesh ? pt.m.area : estArea(V);
+    const H = fromMesh ? pt.m.bbox[2] : Math.cbrt(V);
+    let eff, shell = 0;
+    if (tech === 'FDM'){ shell = Math.min(V, A * walls * 0.45); eff = (shell + (V - shell) * infill) * (1 + sup) }
+    else eff = V * (1 + sup);
+    return { pt, qty: pt.qty, eff, shell, H, mass: eff / 1000 * mat.density };
+  });
+  const single = calc.length === 1;
+  const qty = calc.reduce((a, c) => a + c.qty, 0);              // всего штук
+  const effSum = calc.reduce((a, c) => a + c.eff * c.qty, 0);   // мм³ пластика на весь заказ
+  const massSum = calc.reduce((a, c) => a + c.mass * c.qty, 0); // г на весь заказ
+  const maxH = Math.max(...calc.map(c => c.H));
+  const effFx = tech === 'FDM'
+    ? (single ? `оболочка ${nf1.format(calc[0].shell/1000)} см³ + ` : '') + `заполнение ${Math.round(infill*100)}% · поддержки +${Math.round(sup*100)}%`
+    : tech === 'SLA' ? `сплошные детали · поддержки +${Math.round(sup*100)}%` : 'сплошные детали, без поддержек';
+  const matK = mat.price / 1000 * (1 + mat.waste/100);          // ₽ за грамм с отходом
+  const matCost = massSum * matK;
 
   let h, hFx;
   const manual = num('#pTime');
   if (manual > 0){ h = manual; hFx = 'время из слайсера' }
-  else if (tech === 'FDM'){ h = (eff / p.speed / 3600) * 1.3 * qty + 0.2; hFx = `${nf0.format(eff)} мм³ ÷ ${p.speed} мм³/с × 1,3 (холостые) × ${qty} + прогрев` }
-  else { const layers = Math.ceil(H / p.layer); h = layers * p.speed / 3600 + (tech === 'SLS' ? 1.5 : 0.25); hFx = `${nf0.format(layers)} слоёв × ${p.speed} с (вся партия за один запуск)` }
+  else if (tech === 'FDM'){ h = (effSum / p.speed / 3600) * 1.3 + 0.2; hFx = `${nf0.format(effSum)} мм³ ÷ ${p.speed} мм³/с × 1,3 (холостые) + прогрев` }
+  else { const layers = Math.ceil(maxH / p.layer); h = layers * p.speed / 3600 + (tech === 'SLS' ? 1.5 : 0.25); hFx = `${nf0.format(layers)} слоёв по самой высокой детали × ${p.speed} с (вся партия за один запуск)` }
 
   const energy = p.power * h * s.tariff;
   const amortRate = p.price / p.life + p.maint;
   const amort = amortRate * h;
-  const laborMin = num('#pPrep') + num('#pPost') * qty;
+  const prep = num('#pPrep'), post = num('#pPost');
+  const laborMin = prep + post * qty;
   const labor = laborMin / 60 * s.operatorRate;
   const cons = p.consum;
   const base = matCost + energy + amort + labor + cons;
@@ -1019,8 +1104,18 @@ function calcPrint(){
   const tax = (cost + markup) * s.tax / 100;
   const total = cost + markup + tax;
 
+  // доля каждой детали в цене: пластик и машинное время — по объёму, подготовка и расходники — поровну, постобработка — по штукам
+  const mult = (1 + mat.fail / 100) * (1 + mk) * (1 + s.tax / 100);
+  const perPart = calc.map(c => {
+    const share = effSum ? c.eff * c.qty / effSum : 1 / calc.length;
+    const b = c.mass * c.qty * matK + (energy + amort) * share + (prep / calc.length + post * c.qty) / 60 * s.operatorRate + cons / calc.length;
+    return { name: c.pt.name, qty: c.qty, mass: c.mass, total: b * mult };
+  });
+
   const lines = [
-    { k:'mat', nm:'Материал', v:matCost, fx:`${nf1.format(mass)} г × ${money(mat.price)}/кг × (1 + ${mat.waste}% отход) × ${qty} шт · ${effFx}` },
+    { k:'mat', nm:'Материал', v:matCost, fx: single
+        ? `${nf1.format(calc[0].mass)} г × ${money(mat.price)}/кг × (1 + ${mat.waste}% отход) × ${qty} шт · ${effFx}`
+        : `${nf1.format(massSum)} г на ${calc.length} ${plural(calc.length, 'модель', 'модели', 'моделей')} (${qty} шт) × ${money(mat.price)}/кг × (1 + ${mat.waste}% отход) · ${effFx}` },
     { k:'energy', nm:'Электроэнергия', v:energy, fx:`${p.power} кВт × ${nf2.format(h)} ч × ${money2(s.tariff)}/кВт·ч` },
     { k:'amort', nm:'Износ принтера', v:amort, fx:`(${money(p.price)} ÷ ${nf0.format(p.life)} ч + ${money(p.maint)}/ч) × ${nf2.format(h)} ч` },
     { k:'labor', nm:'Работа оператора', v:labor, fx:`${nf0.format(laborMin)} мин × ${money(s.operatorRate)}/ч (подготовка + постобработка × ${qty})` },
@@ -1032,12 +1127,13 @@ function calcPrint(){
   ];
   renderLines('#rLines', '#rBar', lines, total);
   countTo($('#rTotal'), total);
-  $('#rPer').innerHTML = qty > 1 ? `${money(total/qty)} за шт<br>${qty} шт` : 'за 1 шт';
-  $('#kMass').textContent = nf1.format(mass * qty) + ' г';
+  $('#rPer').innerHTML = !single ? `${calc.length} ${plural(calc.length, 'модель', 'модели', 'моделей')}<br>${qty} шт` : qty > 1 ? `${money(total/qty)} за шт<br>${qty} шт` : 'за 1 шт';
+  $('#kMass').textContent = nf1.format(massSum) + ' г';
   $('#kTime').textContent = hrs(h);
   $('#kProfit').textContent = money(markup);
-  $('#rNote').textContent = manual > 0 ? '' : 'Время — оценка по объёму. Для точности впишите время из слайсера.';
-  lastPrint = { total, qty, desc:`${tech} · ${mat.name} · ${nf1.format(mass)} г/шт · ${hrs(h)}`, lines };
+  $('#rNote').textContent = manual > 0 ? '' : 'Время — оценка по объёму. Для точности впишите время из слайсера' + (single ? '.' : ' для всего стола.');
+  lastPrint = { total, qty, desc: single ? `${tech} · ${mat.name} · ${nf1.format(calc[0].mass)} г/шт · ${hrs(h)}` : `${tech} · ${mat.name} · ${calc.length} ${plural(calc.length, 'модель', 'модели', 'моделей')}, ${qty} шт · ${nf1.format(massSum)} г · ${hrs(h)}`,
+    lines, perPart, tech, matName: mat.name };
 }
 function renderLines(listSel, barSel, lines, total){
   const parts = lines.filter(l => !l.sum && l.v > 0.005);
@@ -1055,8 +1151,17 @@ function countTo(el, target){
   const step = t => { const k = Math.min(1, (t - t0) / d), e = 1 - Math.pow(1 - k, 3); el.textContent = money(from + (target - from) * e); if (k < 1) el._raf = requestAnimationFrame(step) };
   el._raf = requestAnimationFrame(step);
 }
-['#pMat','#pInfill','#pWalls','#pSupport','#pQty','#pTime','#pPrep','#pPost','#pMarkup'].forEach(id => $(id).addEventListener('input', calcPrint));
-$('#pVol').addEventListener('input', () => { updateStats(); calcPrint() });
+['#pMat','#pInfill','#pWalls','#pSupport','#pTime','#pPrep','#pPost','#pMarkup'].forEach(id => $(id).addEventListener('input', calcPrint));
+$('#pQty').addEventListener('input', () => {
+  if (parts[sel]) parts[sel].qty = Math.max(1, Math.round(num('#pQty', 1)));
+  renderParts(); calcPrint();
+});
+$('#pVol').addEventListener('input', () => {
+  const v = num('#pVol') * 1000;
+  if (!parts.length && v > 0){ parts = [{ name:'Деталь', label:'Объём вписан вручную', m:null, vol:v, qty:Math.max(1, Math.round(num('#pQty', 1))) }]; sel = 0; $('#modelTag').textContent = 'Объём вписан вручную' }
+  else if (parts[sel]) parts[sel].vol = Math.max(0, v);
+  updateStats(); renderParts(); calcPrint();
+});
 
 /* ---------------- scan calc ---------------- */
 const getSize = seg('#sizeSeg', calcScan), getCx = seg('#cxSeg', calcScan), getAcc = seg('#accSeg', calcScan);
@@ -1277,7 +1382,7 @@ function applyEstimate(est, prefix){
   let positions = new Float32Array(0);
   if (window.THREE){ positions = new THREE.BoxGeometry(box[0], box[1], box[2]).toNonIndexed().attributes.position.array.slice() }
   const name = String(est.name || 'Деталь').slice(0, 80);
-  setModel({ vol:V, area:Math.max(estArea(V), 2 * V / wall), bbox:box, tris:0, positions, est:true }, 'По описанию · ' + name);
+  setModel({ vol:V, area:Math.max(estArea(V), 2 * V / wall), bbox:box, tris:0, positions, est:true }, 'По описанию · ' + name, { name });
   $('#pName').value = name;
   // размер для сканирования
   const maxd = Math.max(...box), cls = maxd < 100 ? 'S' : maxd < 300 ? 'M' : maxd < 1000 ? 'L' : 'XL';
@@ -1353,7 +1458,13 @@ function addItem(name, desc, qty, total){
   st.items.push({ name, desc, qty, price: Math.round(total / qty * 100) / 100 });
   save(); renderReceipt(); toast('Добавлено в квитанцию');
 }
-$('#addPrint').addEventListener('click', () => lastPrint && addItem($('#pName').value || '3D‑печать', lastPrint.desc, lastPrint.qty, lastPrint.total));
+$('#addPrint').addEventListener('click', () => {
+  if (!lastPrint) return;
+  if (lastPrint.perPart.length < 2){ addItem($('#pName').value || '3D‑печать', lastPrint.desc, lastPrint.qty, lastPrint.total); return }
+  // несколько деталей — отдельная строка на каждую, сумма строк равна итогу расчёта
+  lastPrint.perPart.forEach(pp => st.items.push({ name: pp.name, desc: `${lastPrint.tech} · ${lastPrint.matName} · ${nf1.format(pp.mass)} г/шт`, qty: pp.qty, price: Math.round(pp.total / pp.qty * 100) / 100 }));
+  save(); renderReceipt(); toast(`В квитанцию добавлено деталей: ${lastPrint.perPart.length}`);
+});
 $('#addScan').addEventListener('click', () => lastScan && addItem($('#sName').value || '3D‑сканирование', lastScan.desc, lastScan.qty, lastScan.total));
 $('#addCustom').addEventListener('click', () => { st.items.push({ name:'Доставка', desc:'', qty:1, price:500 }); save(); renderReceipt() });
 $('#copyPrint').addEventListener('click', () => {
@@ -1501,7 +1612,8 @@ initViewer();
 fillMaterials();
 renderMaterials(); renderSettings();
 const sm = sampleModel();
-if (sm) setModel(sm, 'Образец · узел‑тор, PLA'); else { $('#pVol').value = '24.0'; updateStats(); calcPrint() }
+if (sm) setModel(sm, 'Образец · узел‑тор, PLA', { sample:true, name:'Образец' });
+else { parts = [{ name:'Образец', label:'Образец', m:null, vol:24000, qty:1, sample:true }]; selectPart(0) }
 calcScan();
 renderReceipt();
 if (st.settings.folk) applyFolk(true, true);

@@ -1,6 +1,6 @@
 // Офлайн-режим «Меркурий 3D»: всё приложение лежит в кэше телефона.
 // При каждом обновлении файлов build.ps1 меняет VERSION, и телефон подхватывает новую версию.
-const VERSION = 'merc3d-20261019-103300';
+const VERSION = 'merc3d-20261021-082806';
 const CORE = ['./', './index.html', './manifest.webmanifest', './vendor/three.min.js', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

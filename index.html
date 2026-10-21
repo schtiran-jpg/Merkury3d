@@ -61,7 +61,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 /* window */
 .shell{position:relative;z-index:1;padding-block:28px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;justify-content:center}
-.win{width:100%;max-width:1240px;background:var(--glass);border:1px solid var(--line-2);border-radius:18px;box-shadow:0 40px 120px -30px rgba(0,0,0,.8),0 0 0 1px rgba(0,0,0,.4) inset,0 1px 0 rgba(255,255,255,.08) inset;backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);overflow:hidden;animation:winIn .9s cubic-bezier(.2,.8,.2,1) both}
+.win{width:100%;max-width:1240px;background:var(--glass);border:1px solid var(--line-2);border-radius:18px;box-shadow:0 40px 120px -30px rgba(0,0,0,.8),0 0 0 1px rgba(0,0,0,.4) inset,0 1px 0 rgba(255,255,255,.08) inset;backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);overflow:hidden;overflow:clip;animation:winIn .9s cubic-bezier(.2,.8,.2,1) both}
 @keyframes winIn{from{opacity:0;transform:translateY(18px) scale(.97);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
 .titlebar{display:flex;align-items:center;gap:14px;height:46px;padding:0 16px;border-bottom:1px solid var(--line);background:linear-gradient(to bottom,rgba(255,255,255,.04),transparent)}
 .lights{display:flex;gap:8px}
@@ -106,6 +106,11 @@ h2{font-family:var(--display);font-weight:700;font-size:15px;margin:0 0 12px;let
 .viewer canvas{display:block;width:100%!important;height:100%!important}
 .viewer .hint{position:absolute;left:12px;bottom:10px;right:12px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted);pointer-events:none}
 .viewer .hint b{color:var(--fg);font-weight:600}
+.vnav{position:absolute;top:8px;right:8px;display:flex;align-items:center;gap:4px;padding:3px;border-radius:20px;background:rgba(0,0,0,.55);border:1px solid var(--line-2);z-index:2}
+.vnav button{width:32px;height:32px;border:0;border-radius:50%;background:rgba(255,255,255,.06);color:var(--gold-2);font-size:20px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.vnav button:hover{background:rgba(233,184,101,.18)}
+.vnav span{font-family:var(--mono);font-size:12px;color:var(--fg);min-width:44px;text-align:center}
+.viewer .tag{max-width:calc(100% - 150px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .viewer .tag{position:absolute;top:10px;left:12px;font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:20px;background:rgba(0,0,0,.45);border:1px solid var(--line);color:var(--gold-2)}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
 .stat{padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.2);border:1px solid var(--line);min-width:0}
@@ -154,7 +159,7 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
 /* result */
-.result{position:sticky;top:16px}
+.result{position:static}
 .total{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .total .big{font-family:var(--display);font-weight:800;font-size:clamp(34px,4.4vw,46px);letter-spacing:-.02em;line-height:1;background:linear-gradient(180deg,var(--gold-2),var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
 .total .per{font-family:var(--mono);color:var(--muted);font-size:12px;text-align:right}
@@ -247,6 +252,8 @@ textarea.mono{font-family:var(--mono);font-size:12px;min-height:140px;resize:ver
   .tab{flex:none}
   .pane{padding:16px}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* несколько деталей: окно модели остаётся вверху экрана, пока листаете список */
+  .card.multi .viewer{position:sticky;top:env(safe-area-inset-top,0px);z-index:3;height:220px;background-color:#0d0e15;box-shadow:0 10px 24px -12px rgba(0,0,0,.9)}
   .fields{grid-template-columns:minmax(0,1fr)}
   .item-ed{grid-template-columns:minmax(0,1fr) 56px 90px 32px}
   .brand{justify-content:flex-start}
@@ -308,9 +315,14 @@ textarea.mono{font-family:var(--mono);font-size:12px;min-height:140px;resize:ver
       </div>
       <div class="grid2">
         <div class="stack">
-          <div class="card">
+          <div class="card" id="modelCard">
             <div class="viewer" id="viewer">
               <span class="tag" id="modelTag">Образец · узел‑тор</span>
+              <div class="vnav" id="vNav" hidden>
+                <button type="button" id="vPrev" aria-label="Предыдущая деталь">‹</button>
+                <span id="vPos">1 / 1</span>
+                <button type="button" id="vNext" aria-label="Следующая деталь">›</button>
+              </div>
               <div class="hint"><span>Перетащите один или несколько <b>.stl</b> сюда или</span><span class="row" style="gap:6px;pointer-events:auto"><button class="btn small ghost" type="button" id="clearStl">Убрать модель</button><button class="btn small" type="button" id="pickStl">Выбрать файлы</button></span></div>
               <input type="file" id="stlFile" multiple accept=".stl,model/stl,application/sla,application/octet-stream" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1" aria-hidden="true">
             </div>
@@ -944,6 +956,12 @@ function renderParts(){
   $('#partsBox').hidden = !real.length;
   $('#pQtyLabel').textContent = parts.length > 1 ? 'Количество выбранной детали, шт' : 'Количество, шт';
   $('#clearStl').textContent = parts.length > 1 ? 'Убрать все' : 'Убрать модель';
+  // стрелки в окне модели и «прилипающее» окно на телефоне — когда деталей больше одной
+  const multi = parts.length > 1;
+  $('#vNav').hidden = !multi;
+  $('#vPos').textContent = `${sel + 1} / ${parts.length}`;
+  const card = $('#modelCard');
+  if (card.classList.contains('multi') !== multi){ card.classList.toggle('multi', multi); resizeViewer() }
   if (!real.length) return;
   const units = parts.reduce((a, p) => a + p.qty, 0);
   const vol = parts.reduce((a, p) => a + p.vol * p.qty, 0);
@@ -955,10 +973,17 @@ function renderParts(){
       <button class="icon-btn" type="button" data-rm="${i}" aria-label="Убрать ${esc(p.name)}">✕</button>
     </li>`).join('');
 }
+$('#vPrev').addEventListener('click', e => { e.stopPropagation(); if (parts.length > 1) selectPart((sel - 1 + parts.length) % parts.length) });
+$('#vNext').addEventListener('click', e => { e.stopPropagation(); if (parts.length > 1) selectPart((sel + 1) % parts.length) });
 function plural(n, one, few, many){ const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many }
 $('#partsList').addEventListener('click', e => {
   const pick = e.target.closest('[data-pick]'), rm = e.target.closest('[data-rm]');
-  if (pick) selectPart(+pick.dataset.pick);
+  if (pick){
+    selectPart(+pick.dataset.pick);
+    // если окно модели ушло за верх экрана (старые браузеры без «прилипания») — показать его
+    const r = $('#viewer').getBoundingClientRect();
+    if (r.bottom < 40) $('#viewer').scrollIntoView({ block:'start', behavior:'smooth' });
+  }
   if (rm){
     const i = +rm.dataset.rm;
     parts.splice(i, 1);

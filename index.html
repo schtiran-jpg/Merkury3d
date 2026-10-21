@@ -214,6 +214,20 @@ td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-num
 .manual-note span{flex:1 1 220px;min-width:0}
 .est-dep.off{opacity:.45}
 
+/* receipt sending */
+.send-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.send-btn{display:flex;gap:10px;align-items:center;text-align:left;padding:12px;border-radius:12px;border:1px solid var(--line-2);background:rgba(255,255,255,.04);color:var(--fg);font-weight:700;cursor:pointer;text-decoration:none;min-width:0;transition:background .2s,border-color .2s,transform .15s}
+.send-btn:hover{background:rgba(255,255,255,.08)}
+.send-btn:active{transform:scale(.98)}
+.send-btn svg{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.send-btn span{min-width:0}
+.send-btn small{display:block;font-weight:500;font-size:11.5px;color:var(--muted);line-height:1.3}
+.send-btn.share{grid-column:1/-1;background:linear-gradient(180deg,rgba(233,184,101,.22),rgba(233,184,101,.08));border-color:rgba(233,184,101,.45);color:var(--gold-2)}
+.send-btn.tg svg{color:#5fb6ec}
+.send-btn.max svg{color:#9c8cf2}
+.send-btn.mail svg{color:var(--teal)}
+.send-btn.mail{grid-column:1/-1}
+
 /* photo ruler */
 .measure{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
 .m-steps{display:flex;gap:6px;flex-wrap:wrap}
@@ -678,11 +692,29 @@ textarea.mono{font-family:var(--mono);font-size:12px;min-height:140px;resize:ver
             <div class="items-ed" id="itemsEd"></div>
           </div>
           <div class="card">
-            <h2>Отправка</h2>
-            <div class="row" id="sendRow">
-              <button class="btn primary" id="btnMail" type="button"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/></svg>Отправить по почте</button>
-              <button class="btn" id="btnPrint" type="button">PDF / печать</button>
-              <button class="btn ghost" id="btnCopy" type="button">Копировать текст</button>
+            <h2>Отправка клиенту</h2>
+            <div class="send-grid" id="sendRow">
+              <button class="send-btn share" id="btnShare" type="button">
+                <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/></svg>
+                <span>Поделиться<small>картинка квитанции: Telegram, MAX, WhatsApp, почта</small></span>
+              </button>
+              <a class="send-btn tg" id="btnTg" href="https://t.me/share/url" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24"><path d="M21 4 3 11l6 2 2 6 3-4 5 4z"/><path d="m9 13 8-6"/></svg>
+                <span>Telegram<small>текст квитанции в чат</small></span>
+              </a>
+              <button class="send-btn max" id="btnMax" type="button">
+                <svg viewBox="0 0 24 24"><path d="M4 18V6l8 7 8-7v12"/></svg>
+                <span>MAX<small>картинка или текст</small></span>
+              </button>
+              <button class="send-btn mail" id="btnMail" type="button">
+                <svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/></svg>
+                <span>E‑mail<small>на адрес клиента</small></span>
+              </button>
+            </div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn small" id="btnImg" type="button">Сохранить картинку</button>
+              <button class="btn small" id="btnPrint" type="button">PDF / печать</button>
+              <button class="btn small ghost" id="btnCopy" type="button">Копировать текст</button>
             </div>
             <p class="note" id="sendNote"></p>
             <textarea class="mono" id="plainOut" readonly hidden aria-label="Текст квитанции"></textarea>
@@ -1600,6 +1632,7 @@ function renderPaper(){
     </table>` : '<p style="color:var(--ink-2)">Нет позиций.</p>'}
     <div class="tot"><span>Итого к оплате</span><b>${money(total)}</b></div>
     <div class="foot">${c.note ? esc(c.note) + '<br>' : ''}${s.tax ? `В том числе налог ${s.tax}%. ` : ''}${s.folk ? 'Применён народный тариф. ' : ''}Расчёт включает материал, электроэнергию, износ оборудования, работу и риск брака.${s.companyPhone || s.companyEmail ? '<br>Связь: ' + esc([s.companyPhone, s.companyEmail].filter(Boolean).join(' · ')) : ''}</div>`;
+  updateTgLink();
 }
 function plainReceipt(){
   const s = st.settings, c = st.client;
@@ -1618,20 +1651,139 @@ function copy(text){
 $('#btnCopy').addEventListener('click', () => copy(plainReceipt()));
 $('#btnMail').addEventListener('click', () => {
   if (!st.items.length){ toast('Добавьте хотя бы одну позицию'); return }
-  const to = st.client.email.trim();
+  const to = (st.client.email || '').trim();
   if (!to){ toast('Укажите e‑mail клиента'); $('#cEmail').focus(); return }
   const href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent('Квитанция № ' + receiptNo() + ' — ' + st.settings.company)}&body=${encodeURIComponent(plainReceipt())}`;
   location.href = href;
   toast('Открываем почтовую программу…');
 });
 $('#btnPrint').addEventListener('click', () => window.print());
+
+/* ---------- квитанция картинкой и отправка в мессенджеры ---------- */
+function wrapText(ctx, text, maxW){
+  const out = [];
+  String(text).split('\n').forEach(par => {
+    let line = '';
+    par.split(/\s+/).forEach(w => {
+      const t = line ? line + ' ' + w : w;
+      if (ctx.measureText(t).width > maxW && line){ out.push(line); line = w } else line = t;
+    });
+    out.push(line);
+  });
+  return out;
+}
+async function receiptCanvas(){
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready } catch(e){}
+  const s = st.settings, c = st.client;
+  const W = 1080, P = 72, inner = W - P * 2;
+  const C = { paper:'#F7F4EC', ink:'#1B1C22', ink2:'#6A6C78', line:'#D9D3C4', soft:'#EBE6DA', gold:'#B8862F' };
+  const F = { title:'800 46px Syne, Manrope, sans-serif', b:'700 28px Manrope, sans-serif', r:'500 26px Manrope, sans-serif', s:'500 22px Manrope, sans-serif', n:'500 26px "JetBrains Mono", monospace', big:'800 52px Syne, Manrope, sans-serif', lbl:'700 19px Manrope, sans-serif' };
+  const colQty = 80, colPrice = 170, colSum = 180, colName = inner - colQty - colPrice - colSum - 24;
+  const date = new Date().toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
+  const cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+  // проход 1 — считаем высоту, проход 2 — рисуем
+  const layout = draw => {
+    let y = P;
+    const text = (t, x, f, col, align) => { if (!draw) return; ctx.font = f; ctx.fillStyle = col; ctx.textAlign = align || 'left'; ctx.fillText(t, x, y) };
+    const rule = (col, w, dash) => { if (!draw) return; ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = w; if (dash) ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(P, y); ctx.lineTo(W - P, y); ctx.stroke(); ctx.restore() };
+    if (draw){
+      ctx.fillStyle = C.paper; ctx.fillRect(0, 0, cv.width, cv.height);
+      // печать
+      ctx.save(); ctx.translate(W - P - 70, P + 58); ctx.rotate(-0.2);
+      ctx.strokeStyle = C.gold; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 66, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = C.gold; ctx.font = '800 17px Syne, Manrope, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('МЕРКУРИЙ', 0, -2); ctx.fillText('3D', 0, 22); ctx.restore();
+    }
+    ctx.font = F.title;
+    wrapText(ctx, `Квитанция № ${receiptNo()}`, inner - 170).forEach(l => { y += 50; text(l, P, F.title, C.ink) });
+    ctx.font = F.s; y += 40; text(s.company + (s.companyInn ? ' · ИНН ' + s.companyInn : ''), P, F.s, C.ink2);
+    y += 34; rule(C.line, 2, [10, 8]);
+    y += 40; text('ДАТА', P, F.lbl, C.ink2); text('ЗАКАЗЧИК', P + inner / 2, F.lbl, C.ink2);
+    y += 36; text(date, P, F.b, C.ink);
+    ctx.font = F.b; const who = wrapText(ctx, c.name || '—', inner / 2);
+    who.forEach((l, i) => { if (i) y += 34; text(l, P + inner / 2, F.b, C.ink) });
+    [c.phone, c.email].filter(Boolean).forEach(v => { y += 32; text(v, P + inner / 2, F.s, C.ink2) });
+    y += 44;
+    // таблица
+    const xQ = P + colName + 24 + colQty, xP = xQ + colPrice, xS = W - P;
+    y += 10; text('УСЛУГА', P, F.lbl, C.ink2); text('КОЛ.', xQ, F.lbl, C.ink2, 'right'); text('ЦЕНА', xP, F.lbl, C.ink2, 'right'); text('СУММА', xS, F.lbl, C.ink2, 'right');
+    y += 18; rule(C.line, 2);
+    if (!st.items.length){ y += 50; text('Нет позиций', P, F.r, C.ink2) }
+    st.items.forEach(it => {
+      ctx.font = F.b; const nl = wrapText(ctx, it.name, colName);
+      ctx.font = F.s; const dl = it.desc ? wrapText(ctx, it.desc, colName) : [];
+      y += 44;
+      text(String(it.qty), xQ, F.n, C.ink, 'right'); text(money(it.price), xP, F.n, C.ink, 'right'); text(money(it.qty * it.price), xS, F.n, C.ink, 'right');
+      nl.forEach((l, i) => { if (i) y += 34; text(l, P, F.b, C.ink) });
+      dl.forEach(l => { y += 30; text(l, P, F.s, C.ink2) });
+      y += 22; rule(C.soft, 2);
+    });
+    y += 26; rule(C.ink, 3);
+    y += 62; text('Итого к оплате', P, F.b, C.ink); text(money(receiptTotal()), W - P, F.big, C.ink, 'right');
+    const foot = [c.note, s.tax ? `В том числе налог ${s.tax}%.` : '', 'Расчёт включает материал, электроэнергию, износ оборудования, работу и риск брака.', (s.companyPhone || s.companyEmail) ? 'Связь: ' + [s.companyPhone, s.companyEmail].filter(Boolean).join(' · ') : ''].filter(Boolean).join('\n');
+    ctx.font = F.s; y += 26;
+    wrapText(ctx, foot, inner).forEach(l => { y += 32; text(l, P, F.s, C.ink2) });
+    return y + P;
+  };
+  cv.width = W; cv.height = Math.ceil(layout(false));
+  layout(true);
+  return cv;
+}
+const receiptFileName = () => `Квитанция_${receiptNo()}.png`;
+async function receiptFile(){
+  const cv = await receiptCanvas();
+  const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+  return new File([blob], receiptFileName(), { type:'image/png' });
+}
+const shareTitle = () => `Квитанция № ${receiptNo()} — ${st.settings.company}`;
+// системное меню «Поделиться»: на телефоне в нём Telegram, MAX, WhatsApp, почта
+async function shareReceipt(hint){
+  if (!st.items.length){ toast('Добавьте хотя бы одну позицию'); return false }
+  if (!navigator.share || framed) return false;
+  try {
+    const file = await receiptFile();
+    const data = { title: shareTitle(), text: plainReceipt() };
+    if (navigator.canShare && navigator.canShare({ files:[file] })) data.files = [file];
+    if (hint) toast(hint);
+    await navigator.share(data);
+    return true;
+  } catch(e){
+    if (e && e.name === 'AbortError') return true; // пользователь закрыл меню — это не ошибка
+    return false;
+  }
+}
+$('#btnShare').addEventListener('click', async () => {
+  if (!navigator.share){ toast('На этом устройстве нет меню «Поделиться». Используйте Telegram, e‑mail или «Сохранить картинку».'); return }
+  await shareReceipt();
+});
+function updateTgLink(){
+  const body = plainReceipt();
+  const first = body.split('\n')[0], rest = body.split('\n').slice(1).join('\n');
+  $('#btnTg').href = `https://t.me/share/url?url=${encodeURIComponent(first)}&text=${encodeURIComponent(rest)}`;
+}
+$('#btnTg').addEventListener('click', e => { if (!st.items.length){ e.preventDefault(); toast('Добавьте хотя бы одну позицию') } });
+$('#btnMax').addEventListener('click', async () => {
+  if (!st.items.length){ toast('Добавьте хотя бы одну позицию'); return }
+  // у MAX нет общедоступной ссылки «поделиться», поэтому через системное меню или буфер обмена
+  if (await shareReceipt('Выберите MAX в списке')) return;
+  copy(plainReceipt());
+  toast('Текст квитанции скопирован — откройте MAX и вставьте его в чат клиента');
+});
+$('#btnImg').addEventListener('click', async () => {
+  if (!st.items.length){ toast('Добавьте хотя бы одну позицию'); return }
+  const file = await receiptFile();
+  const url = URL.createObjectURL(file), a = document.createElement('a');
+  a.href = url; a.download = receiptFileName(); document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast('Картинка квитанции сохранена');
+});
 $('#btnIssue').addEventListener('click', () => {
   if (!st.items.length){ toast('Квитанция пустая'); return }
   st.settings.nextNo++; st.issued++; st.items = []; save(); renderReceipt(); toast('Квитанция закрыта. Номер следующей: ' + receiptNo());
 });
 if (framed){
-  $('#btnMail').hidden = true; $('#btnPrint').hidden = true;
-  $('#sendNote').textContent = 'В режиме предпросмотра отправка и PDF недоступны — скопируйте текст. В установленной версии кнопки «Отправить по почте» и «PDF» работают.';
+  // в предпросмотре Claude недоступны меню «Поделиться», почта, сохранение файлов и печать
+  ['#btnShare', '#btnMail', '#btnPrint', '#btnImg'].forEach(id => $(id).hidden = true);
+  $('#sendNote').textContent = 'В предпросмотре работают Telegram, MAX (через копирование) и «Копировать текст». В приложении на телефоне доступны ещё «Поделиться» картинкой, e‑mail и сохранение картинки.';
 }
 
 /* ---------------- materials editor ---------------- */

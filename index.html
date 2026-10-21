@@ -483,6 +483,21 @@ textarea.mono{font-family:var(--mono);font-size:12px;min-height:140px;resize:ver
               </div>
             </div>
           </div>
+
+          <div class="card">
+            <h2>Цена, комфортная клиенту</h2>
+            <div class="fields">
+              <label class="check f full"><input type="checkbox" id="pNice" checked><span>Красивая цена<small>Округляет вниз до привычных цифр — 490, 990, 1 490 ₽. Ниже себестоимости с налогом не опускает.</small></span></label>
+              <div class="f">
+                <label for="pCap">Потолок цены за штуку, ₽ <span>пусто = нет</span></label>
+                <input type="number" id="pCap" min="0" step="10" placeholder="например, 990">
+              </div>
+              <div class="f">
+                <span class="l">Подсказка</span>
+                <div class="note" id="pCapHint" style="margin:0">Впишите сумму, дороже которой клиент вряд ли купит, например 990 ₽.</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <aside class="card result" aria-live="polite">
@@ -973,6 +988,19 @@ function renderParts(){
       <button class="icon-btn" type="button" data-rm="${i}" aria-label="Убрать ${esc(p.name)}">✕</button>
     </li>`).join('');
 }
+// привычные покупателю цены: 490, 990, 1 490…
+const NICE = (() => {
+  const a = [49, 59, 69, 79, 89, 99, 119, 129, 149, 169, 179, 199, 219, 249, 269, 290, 349, 390];
+  for (let v = 450; v < 1000; v += 50) a.push(v % 100 === 0 ? v - 10 : v);   // 450, 490, 550, 590 … 990
+  for (let v = 1100; v <= 3000; v += 100) a.push(v - 10);                    // 1 090 … 2 990
+  for (let v = 3500; v <= 10000; v += 500) a.push(v - 10);                   // 3 490 … 9 990
+  return [...new Set(a)].sort((x, y) => x - y);
+})();
+function niceBelow(v){
+  if (v < 49) return Math.floor(v);
+  if (v >= 10000) return Math.floor((v + 10) / 1000) * 1000 - 10;
+  let best = NICE[0]; for (const n of NICE) if (n <= v) best = n; return best;
+}
 $('#vPrev').addEventListener('click', e => { e.stopPropagation(); if (parts.length > 1) selectPart((sel - 1 + parts.length) % parts.length) });
 $('#vNext').addEventListener('click', e => { e.stopPropagation(); if (parts.length > 1) selectPart((sel + 1) % parts.length) });
 function plural(n, one, few, many){ const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many }
@@ -1127,10 +1155,23 @@ function calcPrint(){
   const cost = base + risk;
   const markup = cost * mk;
   const tax = (cost + markup) * s.tax / 100;
-  const total = cost + markup + tax;
+  const raw = cost + markup + tax; // цена по формуле, до «комфортной» поправки
+
+  // цена, комфортная клиенту: потолок и красивая цифра, но не ниже себестоимости с налогом
+  const t1 = 1 + s.tax / 100;
+  const per = single ? qty : 1;               // одна деталь — смотрим цену за штуку, набор — за весь заказ
+  const floorU = cost * t1 / per;
+  let unit = raw / per, capShort = 0;
+  const capV = num('#pCap');
+  if (capV > 0 && unit > capV){ if (capV < floorU) capShort = floorU - capV; unit = Math.max(capV, floorU) }
+  if ($('#pNice').checked){ const nb = niceBelow(unit); unit = nb >= floorU ? nb : unit }
+  unit = Math.max(Math.ceil(floorU), Math.round(unit));
+  const total = Math.min(raw, unit * per) || raw;      // поправка только снижает цену
+  const markupF = total / t1 - cost, taxF = total - total / t1;
+  const adjusted = raw - total > 0.5;
 
   // доля каждой детали в цене: пластик и машинное время — по объёму, подготовка и расходники — поровну, постобработка — по штукам
-  const mult = (1 + mat.fail / 100) * (1 + mk) * (1 + s.tax / 100);
+  const mult = (1 + mat.fail / 100) * (1 + mk) * t1 * (total / raw);
   const perPart = calc.map(c => {
     const share = effSum ? c.eff * c.qty / effSum : 1 / calc.length;
     const b = c.mass * c.qty * matK + (energy + amort) * share + (prep / calc.length + post * c.qty) / 60 * s.operatorRate + cons / calc.length;
@@ -1147,16 +1188,27 @@ function calcPrint(){
     { k:'cons', nm:'Расходники', v:cons, fx: tech === 'SLA' ? 'спирт, плёнка FEP, перчатки на заказ' : tech === 'SLS' ? 'просеивание, фильтры, азот' : 'нет' },
     { k:'risk', nm:'Риск брака', v:risk, fx:`${mat.fail}% от суммы выше — перепечатка заложена честно, а не спрятана` },
     { sum:true, nm:'Себестоимость', v:cost },
-    { k:'markup', nm:'Наценка мастерской', v:markup, fx:`${Math.round(mk*100)}% от себестоимости` },
-    { k:'tax', nm:'Налог', v:tax, fx:`${s.tax}% (настраивается)` },
+    { k:'markup', nm:'Наценка мастерской', v:markupF, fx: adjusted
+        ? `${Math.round(markupF / cost * 100)}% от себестоимости — по ползунку было ${Math.round(mk*100)}% (${money(raw)}), цена снижена до комфортной`
+        : `${Math.round(mk*100)}% от себестоимости` },
+    { k:'tax', nm:'Налог', v:taxF, fx:`${s.tax}% (настраивается)` },
   ];
   renderLines('#rLines', '#rBar', lines, total);
+  // что сильнее всего делает цену
+  const drivers = lines.filter(l => ['mat','energy','amort','labor','cons','risk'].includes(l.k)).sort((a, b) => b.v - a.v);
+  const top = drivers[0];
+  const topTip = { labor:'Её уменьшают время подготовки и постобработки или ставка оператора в «Тарифах».', amort:'Его уменьшает более короткая печать: меньше заполнение, толще слой, время из слайсера.', mat:'Его уменьшают заполнение, число стенок и поддержки или более дешёвый пластик.', energy:'', cons:'', risk:'' }[top.k];
+  $('#pCapHint').textContent = adjusted
+    ? `Было ${money(raw)} → стало ${money(total)}. Ваша прибыль: ${money(markupF)}.`
+      + (capShort ? ` Потолок ниже себестоимости на ${money(capShort)} за шт — дешевле программа не ставит, чтобы не работать в минус.` : '')
+    : capV > 0 && capShort === 0 && raw / per <= capV ? `Цена ${money(raw / per)} за шт уже не выше потолка.` : 'Впишите сумму, дороже которой клиент вряд ли купит, например 990 ₽.';
   countTo($('#rTotal'), total);
   $('#rPer').innerHTML = !single ? `${calc.length} ${plural(calc.length, 'модель', 'модели', 'моделей')}<br>${qty} шт` : qty > 1 ? `${money(total/qty)} за шт<br>${qty} шт` : 'за 1 шт';
   $('#kMass').textContent = nf1.format(massSum) + ' г';
   $('#kTime').textContent = hrs(h);
-  $('#kProfit').textContent = money(markup);
-  $('#rNote').textContent = manual > 0 ? '' : 'Время — оценка по объёму. Для точности впишите время из слайсера' + (single ? '.' : ' для всего стола.');
+  $('#kProfit').textContent = money(markupF);
+  $('#rNote').textContent = `Больше всего в себестоимости — ${top.nm.toLowerCase()}: ${money(top.v)} (${Math.round(top.v / cost * 100)}%). ${topTip}`
+    + (manual > 0 ? '' : ' Время — оценка по объёму; для точности впишите время из слайсера' + (single ? '.' : ' для всего стола.'));
   lastPrint = { total, qty, desc: single ? `${tech} · ${mat.name} · ${nf1.format(calc[0].mass)} г/шт · ${hrs(h)}` : `${tech} · ${mat.name} · ${calc.length} ${plural(calc.length, 'модель', 'модели', 'моделей')}, ${qty} шт · ${nf1.format(massSum)} г · ${hrs(h)}`,
     lines, perPart, tech, matName: mat.name };
 }
@@ -1176,7 +1228,9 @@ function countTo(el, target){
   const step = t => { const k = Math.min(1, (t - t0) / d), e = 1 - Math.pow(1 - k, 3); el.textContent = money(from + (target - from) * e); if (k < 1) el._raf = requestAnimationFrame(step) };
   el._raf = requestAnimationFrame(step);
 }
-['#pMat','#pInfill','#pWalls','#pSupport','#pTime','#pPrep','#pPost','#pMarkup'].forEach(id => $(id).addEventListener('input', calcPrint));
+['#pMat','#pInfill','#pWalls','#pSupport','#pTime','#pPrep','#pPost','#pMarkup','#pCap'].forEach(id => $(id).addEventListener('input', calcPrint));
+$('#pNice').checked = st.settings.nicePrint !== false;
+$('#pNice').addEventListener('change', e => { st.settings.nicePrint = e.target.checked; save(); calcPrint() });
 $('#pQty').addEventListener('input', () => {
   if (parts[sel]) parts[sel].qty = Math.max(1, Math.round(num('#pQty', 1)));
   renderParts(); calcPrint();

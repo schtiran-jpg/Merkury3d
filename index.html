@@ -225,8 +225,11 @@ td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-num
 .send-btn.share{grid-column:1/-1;background:linear-gradient(180deg,rgba(233,184,101,.22),rgba(233,184,101,.08));border-color:rgba(233,184,101,.45);color:var(--gold-2)}
 .send-btn.tg svg{color:#5fb6ec}
 .send-btn.max svg{color:#9c8cf2}
-.send-btn.mail svg{color:var(--teal)}
-.send-btn.mail{grid-column:1/-1}
+.mail-row{margin-top:12px;padding:12px;border-radius:12px;border:1px solid var(--line-2);background:rgba(114,213,198,.06)}
+.mail-row label{display:block;font-weight:700;margin-bottom:8px}
+.mail-line{display:flex;gap:8px;flex-wrap:wrap}
+.mail-line input{flex:1 1 200px;min-width:0}
+.mail-line .btn{flex:0 0 auto}
 
 /* photo ruler */
 .measure{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
@@ -706,10 +709,14 @@ textarea.mono{font-family:var(--mono);font-size:12px;min-height:140px;resize:ver
                 <svg viewBox="0 0 24 24"><path d="M4 18V6l8 7 8-7v12"/></svg>
                 <span>MAX<small>картинка или текст</small></span>
               </button>
-              <button class="send-btn mail" id="btnMail" type="button">
-                <svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/></svg>
-                <span>E‑mail<small>на адрес клиента</small></span>
-              </button>
+            </div>
+            <div class="mail-row">
+              <label for="sEmail">Отправить на почту</label>
+              <div class="mail-line">
+                <input type="email" id="sEmail" inputmode="email" autocomplete="off" placeholder="адрес клиента, например ivan@mail.ru">
+                <button class="btn primary" id="btnMail" type="button"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/></svg>Отправить</button>
+              </div>
+              <p class="note" style="margin:6px 0 0">Откроется почтовое приложение с готовым письмом — останется нажать «Отправить». Чтобы приложить квитанцию картинкой, нажмите «Поделиться» и выберите почту.</p>
             </div>
             <div class="row" style="margin-top:10px">
               <button class="btn small" id="btnImg" type="button">Сохранить картинку</button>
@@ -1615,6 +1622,10 @@ $('#itemsEd').addEventListener('click', e => {
   $('#' + id).value = st.client[k] || '';
   $('#' + id).addEventListener('input', e => { st.client[k] = e.target.value; save(); renderPaper() });
 });
+// поле почты в блоке отправки — то же, что «E‑mail» клиента выше
+$('#sEmail').value = st.client.email || '';
+$('#sEmail').addEventListener('input', e => { st.client.email = e.target.value; $('#cEmail').value = e.target.value; save(); renderPaper() });
+$('#cEmail').addEventListener('input', e => { $('#sEmail').value = e.target.value });
 function renderPaper(){
   const s = st.settings, c = st.client, total = receiptTotal();
   const date = new Date().toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
@@ -1652,7 +1663,8 @@ $('#btnCopy').addEventListener('click', () => copy(plainReceipt()));
 $('#btnMail').addEventListener('click', () => {
   if (!st.items.length){ toast('Добавьте хотя бы одну позицию'); return }
   const to = (st.client.email || '').trim();
-  if (!to){ toast('Укажите e‑mail клиента'); $('#cEmail').focus(); return }
+  if (!to){ toast('Впишите почту клиента'); $('#sEmail').focus(); return }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){ toast('Проверьте адрес почты: похоже, в нём ошибка'); $('#sEmail').focus(); return }
   const href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent('Квитанция № ' + receiptNo() + ' — ' + st.settings.company)}&body=${encodeURIComponent(plainReceipt())}`;
   location.href = href;
   toast('Открываем почтовую программу…');
@@ -1782,8 +1794,8 @@ $('#btnIssue').addEventListener('click', () => {
 });
 if (framed){
   // в предпросмотре Claude недоступны меню «Поделиться», почта, сохранение файлов и печать
-  ['#btnShare', '#btnMail', '#btnPrint', '#btnImg'].forEach(id => $(id).hidden = true);
-  $('#sendNote').textContent = 'В предпросмотре работают Telegram, MAX (через копирование) и «Копировать текст». В приложении на телефоне доступны ещё «Поделиться» картинкой, e‑mail и сохранение картинки.';
+  ['#btnShare', '#btnPrint', '#btnImg'].forEach(id => $(id).hidden = true);
+  $('#sendNote').textContent = 'В предпросмотре Claude почтовое приложение может не открыться — тогда нажмите «Копировать текст» и вставьте его в письмо. В приложении на телефоне всё работает, плюс «Поделиться» картинкой и сохранение картинки.';
 }
 
 /* ---------------- materials editor ---------------- */
